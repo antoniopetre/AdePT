@@ -4,8 +4,4 @@
 add_subdirectory(FisherPrice_Alpaka)
 add_subdirectory(FisherPrice_cpp)
 add_subdirectory(FisherPrice_cu)
-
-# Raytracer Benchmark
-if(BENCHMARK)
-  add_subdirectory(Raytracer_Benchmark)
-endif()
+add_subdirectory(Raytracer_Benchmark)

@@ -6,11 +6,11 @@
  */
 
 #include <VecGeom/base/Vector3D.h>
-#include <VecGeom/benchmarking/Raytracer.h>
 #include <VecGeom/management/GeoManager.h>
 #include <VecGeom/navigation/NavStatePath.h>
 #include <VecGeom/base/Stopwatch.h>
 #include "ArgParser.h"
+#include "Raytracer.h"
 
 #ifdef VECGEOM_GDML
 #include <VecGeom/gdml/Frontend.h>

@@ -59,8 +59,3 @@ add_subdirectory(tracking)
 add_subdirectory(physics)
 add_subdirectory(test)
 add_subdirectory(examples)
-
-# Raytracer Benchmark	
-if(BENCHMARK)	
-  set(BENCHMARK ON)	
-endif()
