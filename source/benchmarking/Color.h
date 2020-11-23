@@ -4,6 +4,7 @@
 #ifndef VECGEOM_BENCHMARKING_COLOR_H_
 #define VECGEOM_BENCHMARKING_COLOR_H_
 
+//#include "base/inc/CopCore/include/CopCore/Global.h"
 #include <VecGeom/base/Global.h>
 
 namespace vecgeom {

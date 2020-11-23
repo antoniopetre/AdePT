@@ -9,6 +9,7 @@
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavStateIndex.h>
 #include "Color.h"
+//#include "base/inc/CopCore/include/CopCore/Global.h"
 
 #ifdef VECGEOM_ENABLE_CUDA
 #include <VecGeom/backend/cuda/Interface.h>
@@ -22,6 +23,12 @@ enum ERTView { kRTVparallel = 0, kRTVperspective };
 VECGEOM_DEVICE_FORWARD_DECLARE(class VPlacedVolume;);
 
 inline namespace VECGEOM_IMPL_NAMESPACE {
+
+
+// enum ERTmodel { kRTxray = 0, kRTspecular, kRTtransparent, kRTfresnel };
+// enum ERTView { kRTVparallel = 0, kRTVperspective };
+
+// VECGEOM_DEVICE_FORWARD_DECLARE(class VPlacedVolume;);
 
 class VPlacedVolume;
 

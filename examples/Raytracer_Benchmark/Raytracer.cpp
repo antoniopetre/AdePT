@@ -1,7 +1,8 @@
 /// \file Raytracer.cpp
 /// \author Andrei Gheata (andrei.gheata@cern.ch)
 
-#include "Raytracer.h"
+#include "source/benchmarking/Raytracer.h"
+//#include "base/inc/CopCore/include/CopCore/Global.h"
 
 #include <VecGeom/base/Transformation3D.h>
 #include <VecGeom/base/Stopwatch.h>
@@ -50,7 +51,13 @@ static size_t round_up_align(size_t value)
 }
 */
 inline namespace VECGEOM_IMPL_NAMESPACE {
+void dif_rudimentary()
+{
+	int a = 2;
+	int b = 3;
+	int c = a - b;
 
+}
 /*
 Ray_t::Ray_t(void *addr, int maxdepth) : fMaxDepth(maxdepth)
 {
@@ -60,7 +67,6 @@ Ray_t::Ray_t(void *addr, int maxdepth) : fMaxDepth(maxdepth)
   path_addr      += round_up_align(NavigationState::SizeOfInstance(maxdepth));
   fNextState      = NavigationState::MakeInstanceAt(maxdepth, path_addr);
 }
-
 size_t Ray_t::SizeOfInstance(int maxdepth)
 {
   size_t size = sizeof(Ray_t) + 2 * round_up_align(NavigationState::SizeOfInstance(maxdepth)) + 64;

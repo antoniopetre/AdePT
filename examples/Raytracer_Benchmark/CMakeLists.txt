@@ -1,17 +1,13 @@
 # Link specific libraries
 
-# library Raytracer.cu
-cuda_add_library(Raytracer_cuda Raytracer.cu)
-target_link_libraries(Raytracer_cuda VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda VecGeom::vgdml)
-target_compile_options(Raytracer_cuda PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx;--extended-lambda;--device-c;-lcudart;-lcudadevrt>")
+#exec RaytraceBenchmark.cpp
+add_executable(RaytraceBenchmark Raytracer.cpp RaytraceBenchmark.cpp)
+target_include_directories(RaytraceBenchmark PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>
+  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
+  $<INSTALL_INTERFACE:base>
+)
+target_link_libraries(RaytraceBenchmark VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda VecGeom::vgdml raytracercu)
+target_compile_options(RaytraceBenchmark PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
+set_target_properties(RaytraceBenchmark PROPERTIES CUDA_SEPARABLE_COMPILATION ON CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
-# library RaytraceBenchmark.cu Raytracer.cpp
-add_library(Raytracer Raytracer.cpp RaytraceBenchmark.cu)
-target_link_libraries(Raytracer VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda VecGeom::vgdml Raytracer_cuda)
-target_compile_options(Raytracer PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx;--extended-lambda;--device-c;-lcudart;-lcudadevrt>")
-
-
-#library RaytraceBenchmark.cpp
-add_executable(RaytraceBenchmark RaytraceBenchmark.cpp)
-target_link_libraries(RaytraceBenchmark VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda VecGeom::vgdml Raytracer Raytracer_cuda)
-target_compile_options(RaytraceBenchmark PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx;--extended-lambda;--device-c;-lcudart;-lcudadevrt>")
