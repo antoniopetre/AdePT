@@ -1,7 +1,7 @@
 /// \file Raytracer.cpp
 /// \author Andrei Gheata (andrei.gheata@cern.ch)
 
-#include "source/benchmarking/Raytracer.h"
+#include "examples/Raytracer_Benchmark/Raytracer.h"
 //#include "base/inc/CopCore/include/CopCore/Global.h"
 
 #include <VecGeom/base/Transformation3D.h>

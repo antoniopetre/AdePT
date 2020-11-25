@@ -10,7 +10,7 @@
 #include <VecGeom/navigation/NavStatePath.h>
 #include <VecGeom/base/Stopwatch.h>
 #include "ArgParser.h"
-#include "source/benchmarking/Raytracer.h"
+#include "examples/Raytracer_Benchmark/Raytracer.h"
 
 #ifdef VECGEOM_GDML
 #include <VecGeom/gdml/Frontend.h>
