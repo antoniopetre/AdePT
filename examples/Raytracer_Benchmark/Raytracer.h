@@ -12,6 +12,7 @@
 #include <VecGeom/base/Global.h>
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavStateIndex.h>
+#include <AdePT/BlockData.h>
 
 #include "Color.h"
 #include <CopCore/Global.h>
@@ -29,6 +30,32 @@ enum ERTView { kRTVparallel = 0, kRTVperspective };
 // VECGEOM_DEVICE_FORWARD_DECLARE(class VPlacedVolume;);
 
 class VPlacedVolume;
+
+class LoopNavigator
+{
+  using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
+
+  public:
+  	VECCORE_ATT_HOST_DEVICE
+	static VPlacedVolumePtr_t LocateGlobalPoint(vecgeom::VPlacedVolume const *vol,
+                                     vecgeom::Vector3D<vecgeom::Precision> const &point, vecgeom::NavStateIndex &path,
+                                     bool top);
+	VECCORE_ATT_HOST_DEVICE
+	static VPlacedVolumePtr_t LocateGlobalPointExclVolume(vecgeom::VPlacedVolume const *vol,
+                                               vecgeom::VPlacedVolume const *excludedvolume,
+                                               vecgeom::Vector3D<vecgeom::Precision> const &point,
+                                               vecgeom::NavStateIndex &path, bool top);
+	VECCORE_ATT_HOST_DEVICE
+	static VPlacedVolumePtr_t RelocatePointFromPathForceDifferent(vecgeom::Vector3D<vecgeom::Precision> const &localpoint,
+                                                       vecgeom::NavStateIndex &path);
+
+	VECCORE_ATT_HOST_DEVICE
+	static double ComputeStepAndPropagatedState(vecgeom::Vector3D<vecgeom::Precision> const &globalpoint,
+                                     vecgeom::Vector3D<vecgeom::Precision> const &globaldir,
+                                     vecgeom::Precision step_limit, vecgeom::NavStateIndex const &in_state,
+                                     vecgeom::NavStateIndex &out_state);
+  	
+};
 
 struct Ray_t {
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
@@ -157,25 +184,6 @@ void PropagateRays(RaytracerData_t &data, unsigned char *rays_buffer, unsigned c
 VECCORE_ATT_HOST_DEVICE
 adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py);
 
-// Navigation methods (just temporary here)
-VECCORE_ATT_HOST_DEVICE
-VPlacedVolumePtr_t LocateGlobalPoint(vecgeom::VPlacedVolume const *vol,
-                                     vecgeom::Vector3D<vecgeom::Precision> const &point, vecgeom::NavStateIndex &path,
-                                     bool top);
-VECCORE_ATT_HOST_DEVICE
-VPlacedVolumePtr_t LocateGlobalPointExclVolume(vecgeom::VPlacedVolume const *vol,
-                                               vecgeom::VPlacedVolume const *excludedvolume,
-                                               vecgeom::Vector3D<vecgeom::Precision> const &point,
-                                               vecgeom::NavStateIndex &path, bool top);
-VECCORE_ATT_HOST_DEVICE
-VPlacedVolumePtr_t RelocatePointFromPathForceDifferent(vecgeom::Vector3D<vecgeom::Precision> const &localpoint,
-                                                       vecgeom::NavStateIndex &path);
-
-VECCORE_ATT_HOST_DEVICE
-double ComputeStepAndPropagatedState(vecgeom::Vector3D<vecgeom::Precision> const &globalpoint,
-                                     vecgeom::Vector3D<vecgeom::Precision> const &globaldir,
-                                     vecgeom::Precision step_limit, vecgeom::NavStateIndex const &in_state,
-                                     vecgeom::NavStateIndex &out_state);
 
 } // End namespace Raytracer
 

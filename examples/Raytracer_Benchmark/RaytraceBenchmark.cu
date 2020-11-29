@@ -8,6 +8,7 @@
 
 #include "Raytracer.h"
 #include <CopCore/Global.h>
+#include <AdePT/BlockData.h>
 
 #include <VecGeom/base/Transformation3D.h>
 #include <VecGeom/management/GeoManager.h>
@@ -280,7 +281,7 @@ int RaytraceBenchmarkGPU(cuda::RaytracerData_t *rtdata, bool use_tiles, int bloc
 
   // Initialize the navigation state for the view point
   vecgeom::NavStateIndex vpstate;
-  Raytracer::LocateGlobalPoint(rtdata->fWorld, rtdata->fStart, vpstate, true);
+  LoopNavigator::LocateGlobalPoint(rtdata->fWorld, rtdata->fStart, vpstate, true);
   rtdata->fVPstate = vpstate;
   rtdata->fWorld   = gpu_world;
 

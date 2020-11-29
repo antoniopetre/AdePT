@@ -16,6 +16,7 @@
 #include "ArgParser.h"
 #include "examples/Raytracer_Benchmark/Raytracer.h"
 #include <CopCore/Global.h>
+#include <AdePT/BlockData.h>
 
 #ifdef VECGEOM_GDML
 #include <VecGeom/gdml/Frontend.h>
@@ -134,7 +135,7 @@ int RaytraceBenchmarkCPU(cxx::RaytracerData_t &rtdata)
 
   // Initialize the navigation state for the view point
   vecgeom::NavStateIndex vpstate;
-  Raytracer::LocateGlobalPoint(rtdata.fWorld, rtdata.fStart, vpstate, true);
+  LoopNavigator::LocateGlobalPoint(rtdata.fWorld, rtdata.fStart, vpstate, true);
 
   rtdata.fVPstate = vpstate;
 
