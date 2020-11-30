@@ -5,7 +5,6 @@
 /// \author Andrei Gheata (andrei.gheata@cern.ch)
 /// Adapted from VecGeom for AdePT by antonio.petre@spacescience.ro
 
-
 #include "examples/Raytracer_Benchmark/Raytracer.h"
 #include "examples/Raytracer_Benchmark/Color.h"
 #include <CopCore/Global.h>
@@ -28,8 +27,6 @@
 #include <fstream>
 #include <utility>
 
-
-
 inline namespace COPCORE_IMPL {
 /*
 Ray_t::Ray_t(void *addr, int maxdepth) : fMaxDepth(maxdepth)
@@ -47,44 +44,42 @@ size_t Ray_t::SizeOfInstance(int maxdepth)
 }
 */
 vecgeom::VPlacedVolume const *LoopNavigator::LocateGlobalPoint(vecgeom::VPlacedVolume const *vol,
-                                                vecgeom::Vector3D<vecgeom::Precision> const &point,
-                                                vecgeom::NavStateIndex &path, bool top)
-  {
-    vecgeom::VPlacedVolume const *candvolume = vol;
-    vecgeom::Vector3D<vecgeom::Precision> currentpoint(point);
-    if (top) {
-      assert(vol != nullptr);
-      if (!vol->UnplacedContains(point)) return nullptr;
-    }
-    path.Push(candvolume);
-    vecgeom::LogicalVolume const *lvol                  = candvolume->GetLogicalVolume();
-    vecgeom::Vector<vecgeom::Daughter> const *daughters = lvol->GetDaughtersp();
-
-    bool godeeper = true;
-    while (daughters->size() > 0 && godeeper) {
-      for (size_t i = 0; i < daughters->size() && godeeper; ++i) {
-        vecgeom::VPlacedVolume const *nextvolume = (*daughters)[i];
-        vecgeom::Vector3D<vecgeom::Precision> transformedpoint;
-        if (nextvolume->Contains(currentpoint, transformedpoint)) {
-          path.Push(nextvolume);
-          currentpoint = transformedpoint;
-          candvolume   = nextvolume;
-          daughters    = candvolume->GetLogicalVolume()->GetDaughtersp();
-          break;
-        }
-      }
-    godeeper = false;
-    }
-    return candvolume;  
+                                                               vecgeom::Vector3D<vecgeom::Precision> const &point,
+                                                               vecgeom::NavStateIndex &path, bool top)
+{
+  vecgeom::VPlacedVolume const *candvolume = vol;
+  vecgeom::Vector3D<vecgeom::Precision> currentpoint(point);
+  if (top) {
+    assert(vol != nullptr);
+    if (!vol->UnplacedContains(point)) return nullptr;
   }
+  path.Push(candvolume);
+  vecgeom::LogicalVolume const *lvol                  = candvolume->GetLogicalVolume();
+  vecgeom::Vector<vecgeom::Daughter> const *daughters = lvol->GetDaughtersp();
 
+  bool godeeper = true;
+  while (daughters->size() > 0 && godeeper) {
+    for (size_t i = 0; i < daughters->size() && godeeper; ++i) {
+      vecgeom::VPlacedVolume const *nextvolume = (*daughters)[i];
+      vecgeom::Vector3D<vecgeom::Precision> transformedpoint;
+      if (nextvolume->Contains(currentpoint, transformedpoint)) {
+        path.Push(nextvolume);
+        currentpoint = transformedpoint;
+        candvolume   = nextvolume;
+        daughters    = candvolume->GetLogicalVolume()->GetDaughtersp();
+        break;
+      }
+    }
+    godeeper = false;
+  }
+  return candvolume;
+}
 
-  vecgeom::VPlacedVolume const *LoopNavigator::LocateGlobalPointExclVolume(vecgeom::VPlacedVolume const *vol,
-                                                          vecgeom::VPlacedVolume const *excludedvolume,
-                                                          vecgeom::Vector3D<vecgeom::Precision> const &point,
-                                                          vecgeom::NavStateIndex &path, bool top)
-  {
-    vecgeom::VPlacedVolume const *candvolume = vol;
+vecgeom::VPlacedVolume const *LoopNavigator::LocateGlobalPointExclVolume(
+    vecgeom::VPlacedVolume const *vol, vecgeom::VPlacedVolume const *excludedvolume,
+    vecgeom::Vector3D<vecgeom::Precision> const &point, vecgeom::NavStateIndex &path, bool top)
+{
+  vecgeom::VPlacedVolume const *candvolume = vol;
   vecgeom::Vector3D<vecgeom::Precision> currentpoint(point);
   if (top) {
     assert(vol != nullptr);
@@ -116,12 +111,12 @@ vecgeom::VPlacedVolume const *LoopNavigator::LocateGlobalPoint(vecgeom::VPlacedV
     }
   }
   return candvolume;
-  }
+}
 
-  vecgeom::VPlacedVolume const *LoopNavigator::RelocatePointFromPathForceDifferent(
-      vecgeom::Vector3D<vecgeom::Precision> const &localpoint, vecgeom::NavStateIndex &path)
-  {
-    vecgeom::VPlacedVolume const *currentmother = path.Top();
+vecgeom::VPlacedVolume const *LoopNavigator::RelocatePointFromPathForceDifferent(
+    vecgeom::Vector3D<vecgeom::Precision> const &localpoint, vecgeom::NavStateIndex &path)
+{
+  vecgeom::VPlacedVolume const *currentmother = path.Top();
   vecgeom::VPlacedVolume const *entryvol      = currentmother;
   if (currentmother != nullptr) {
     vecgeom::Vector3D<vecgeom::Precision> tmp = localpoint;
@@ -143,14 +138,13 @@ vecgeom::VPlacedVolume const *LoopNavigator::LocateGlobalPoint(vecgeom::VPlacedV
     }
   }
   return currentmother;
-  }
+}
 
-
-
-  double LoopNavigator::ComputeStepAndPropagatedState(vecgeom::Vector3D<vecgeom::Precision> const &globalpoint,
-                                     vecgeom::Vector3D<vecgeom::Precision> const &globaldir,
-                                     vecgeom::Precision step_limit, vecgeom::NavStateIndex const &in_state,
-                                     vecgeom::NavStateIndex &out_state)
+double LoopNavigator::ComputeStepAndPropagatedState(vecgeom::Vector3D<vecgeom::Precision> const &globalpoint,
+                                                    vecgeom::Vector3D<vecgeom::Precision> const &globaldir,
+                                                    vecgeom::Precision step_limit,
+                                                    vecgeom::NavStateIndex const &in_state,
+                                                    vecgeom::NavStateIndex &out_state)
 {
   // calculate local point/dir from global point/dir
   // call the static function for this provided/specialized by the Impl
@@ -256,9 +250,6 @@ vecgeom::VPlacedVolume const *LoopNavigator::LocateGlobalPoint(vecgeom::VPlacedV
   return step;
 }
 
-
-
-
 void RaytracerData_t::Print()
 {
   printf("  screen_pos(%g, %g, %g) screen_size(%d, %d)\n", fScreenPos[0], fScreenPos[1], fScreenPos[2], fSize_px,
@@ -318,10 +309,12 @@ void InitializeModel(vecgeom::VPlacedVolume const *world, RaytracerData_t &rtdat
   rtdata.fNrays = rtdata.fSize_px * rtdata.fSize_py;
 }
 
-adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py)
+adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t> *rays, int px, int py, int index)
 {
   constexpr int kMaxTries = 10;
   constexpr double kPush  = 1.e-8;
+
+  Ray_t ray = (*rays)[index];
 
   vecgeom::Vector3D<double> pos_onscreen = rtdata.fLeftC + rtdata.fScale * (px * rtdata.fRight + py * rtdata.fUp);
   vecgeom::Vector3D<double> start        = (rtdata.fView == kRTVperspective) ? rtdata.fStart : pos_onscreen;
@@ -355,7 +348,7 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, in
 
     while (nextvol == ray.fVolume && nsmall < kMaxTries) {
       snext   = LoopNavigator::ComputeStepAndPropagatedState(ray.fPos, ray.fDir, vecgeom::kInfLength, ray.fCrtState,
-                                                       ray.fNextState);
+                                                           ray.fNextState);
       nextvol = (Ray_t::VPlacedVolumePtr_t)ray.fNextState.Top();
       ray.fPos += (snext + kPush) * ray.fDir;
       nsmall++;
@@ -443,19 +436,24 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
   if (ray.fVolume == nullptr) ray.fDone = true;
 }
 
-void PropagateRays(RaytracerData_t &rtdata, unsigned char *input_buffer, unsigned char *output_buffer)
+void PropagateRays(adept::BlockData<Ray_t> *rays, RaytracerData_t &rtdata, unsigned char *input_buffer, unsigned char *output_buffer)
 {
   // Propagate all rays and write out the image on the CPU
   size_t n10  = 0.1 * rtdata.fNrays;
   size_t icrt = 0;
+
   // fprintf(stderr, "P3\n%d %d\n255\n", fSize_px, fSize_py);
   for (int py = 0; py < rtdata.fSize_py; py++) {
     for (int px = 0; px < rtdata.fSize_px; px++) {
       if ((icrt % n10) == 0) printf("%lu %%\n", 10 * icrt / n10);
       int ray_index = py * rtdata.fSize_px + px;
-      Ray_t *ray    = (Ray_t *)(input_buffer + ray_index * sizeof(Ray_t));
 
-      auto pixel_color = RaytraceOne(rtdata, *ray, px, py);
+      Ray_t *ray    = (Ray_t *)(input_buffer + ray_index * sizeof(Ray_t));
+      ray->index = ray_index;
+
+      (*rays)[ray_index]    = *ray;
+
+      auto pixel_color = RaytraceOne(rtdata, rays, px, py, ray->index);
 
       int pixel_index                = 4 * ray_index;
       output_buffer[pixel_index + 0] = pixel_color.fComp.red;

@@ -17,6 +17,7 @@
 #include "examples/Raytracer_Benchmark/Raytracer.h"
 #include <CopCore/Global.h>
 #include <AdePT/BlockData.h>
+#include "kernels.h"
 
 #ifdef VECGEOM_GDML
 #include <VecGeom/gdml/Frontend.h>
@@ -127,6 +128,27 @@ int main(int argc, char *argv[])
 
 int RaytraceBenchmarkCPU(cxx::RaytracerData_t &rtdata)
 {
+  using RayBlock     = adept::BlockData<Ray_t>;
+  using RayAllocator = copcore::VariableSizeObjAllocator<RayBlock, copcore::BackendType::CPU>;
+  using Launcher_t     = copcore::Launcher<copcore::BackendType::CPU>;
+  using StreamStruct   = copcore::StreamType<copcore::BackendType::CPU>;
+  using Stream_t       = typename StreamStruct::value_type;
+
+  // initialize BlockData of Ray_t structure
+  int capacity = 1 << 20;
+  RayAllocator hitAlloc(capacity);
+  RayBlock *rays = hitAlloc.allocate(1);
+
+  COPCORE_CALLABLE_DECLARE(generateFunc, generateRays);
+
+  Stream_t stream;
+  StreamStruct::CreateStream(stream);
+
+  Launcher_t generate(stream);
+  generate.Run(generateFunc, capacity, {0, 0}, rays);
+
+  generate.WaitStream();
+
   // Allocate and initialize all rays on the host
   size_t raysize = Ray_t::SizeOfInstance();
   printf("=== Allocating %.3f MB of ray data on the host\n", (float)rtdata.fNrays * raysize / 1048576);
@@ -146,7 +168,7 @@ int RaytraceBenchmarkCPU(cxx::RaytracerData_t &rtdata)
   // Run the CPU propagation kernel
   vecgeom::Stopwatch timer;
   timer.Start();
-  Raytracer::PropagateRays(rtdata, input_buffer, output_buffer);
+  Raytracer::PropagateRays(rays, rtdata, input_buffer, output_buffer);
   auto time_cpu = timer.Stop();
   std::cout << "Run time on CPU: " << time_cpu << "\n";
 

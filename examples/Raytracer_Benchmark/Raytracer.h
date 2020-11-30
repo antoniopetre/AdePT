@@ -21,7 +21,6 @@
 #include <VecGeom/backend/cuda/Interface.h>
 #endif
 
-
 inline namespace COPCORE_IMPL {
 
 enum ERTmodel { kRTxray = 0, kRTspecular, kRTtransparent, kRTfresnel };
@@ -31,30 +30,28 @@ enum ERTView { kRTVparallel = 0, kRTVperspective };
 
 class VPlacedVolume;
 
-class LoopNavigator
-{
+class LoopNavigator {
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
 
-  public:
-  	VECCORE_ATT_HOST_DEVICE
-	static VPlacedVolumePtr_t LocateGlobalPoint(vecgeom::VPlacedVolume const *vol,
-                                     vecgeom::Vector3D<vecgeom::Precision> const &point, vecgeom::NavStateIndex &path,
-                                     bool top);
-	VECCORE_ATT_HOST_DEVICE
-	static VPlacedVolumePtr_t LocateGlobalPointExclVolume(vecgeom::VPlacedVolume const *vol,
-                                               vecgeom::VPlacedVolume const *excludedvolume,
-                                               vecgeom::Vector3D<vecgeom::Precision> const &point,
-                                               vecgeom::NavStateIndex &path, bool top);
-	VECCORE_ATT_HOST_DEVICE
-	static VPlacedVolumePtr_t RelocatePointFromPathForceDifferent(vecgeom::Vector3D<vecgeom::Precision> const &localpoint,
-                                                       vecgeom::NavStateIndex &path);
+public:
+  VECCORE_ATT_HOST_DEVICE
+  static VPlacedVolumePtr_t LocateGlobalPoint(vecgeom::VPlacedVolume const *vol,
+                                              vecgeom::Vector3D<vecgeom::Precision> const &point,
+                                              vecgeom::NavStateIndex &path, bool top);
+  VECCORE_ATT_HOST_DEVICE
+  static VPlacedVolumePtr_t LocateGlobalPointExclVolume(vecgeom::VPlacedVolume const *vol,
+                                                        vecgeom::VPlacedVolume const *excludedvolume,
+                                                        vecgeom::Vector3D<vecgeom::Precision> const &point,
+                                                        vecgeom::NavStateIndex &path, bool top);
+  VECCORE_ATT_HOST_DEVICE
+  static VPlacedVolumePtr_t RelocatePointFromPathForceDifferent(vecgeom::Vector3D<vecgeom::Precision> const &localpoint,
+                                                                vecgeom::NavStateIndex &path);
 
-	VECCORE_ATT_HOST_DEVICE
-	static double ComputeStepAndPropagatedState(vecgeom::Vector3D<vecgeom::Precision> const &globalpoint,
-                                     vecgeom::Vector3D<vecgeom::Precision> const &globaldir,
-                                     vecgeom::Precision step_limit, vecgeom::NavStateIndex const &in_state,
-                                     vecgeom::NavStateIndex &out_state);
-  	
+  VECCORE_ATT_HOST_DEVICE
+  static double ComputeStepAndPropagatedState(vecgeom::Vector3D<vecgeom::Precision> const &globalpoint,
+                                              vecgeom::Vector3D<vecgeom::Precision> const &globaldir,
+                                              vecgeom::Precision step_limit, vecgeom::NavStateIndex const &in_state,
+                                              vecgeom::NavStateIndex &out_state);
 };
 
 struct Ray_t {
@@ -66,8 +63,9 @@ struct Ray_t {
   vecgeom::NavStateIndex fNextState;    ///< navigation state for the next volume
   VPlacedVolumePtr_t fVolume = nullptr; ///< current volume
   int fNcrossed              = 0;       ///< number of crossed boundaries
-  adept::Color_t fColor    = 0;       ///< pixel color
+  adept::Color_t fColor      = 0;       ///< pixel color
   bool fDone                 = false;   ///< done flag
+  int index                  = -1;       ///< index flag
 
   VECCORE_ATT_HOST_DEVICE
   static Ray_t *MakeInstanceAt(void *addr) { return new (addr) Ray_t(); }
@@ -130,26 +128,26 @@ struct RaytracerData_t {
 
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
 
-  double fScale     = 0;                        ///< Scaling from pixels to world coordinates
-  double fShininess = 1.;                       ///< Shininess exponent in the specular model
-  double fZoom      = 1.;                       ///< Zoom with respect to the default view
-  vecgeom::Vector3D<double> fSourceDir;         ///< Light source direction
-  vecgeom::Vector3D<double> fScreenPos;         ///< Screen position
-  vecgeom::Vector3D<double> fStart;             ///< Eye position in perspectove mode
-  vecgeom::Vector3D<double> fDir;               ///< Start direction of all rays in parallel view mode
-  vecgeom::Vector3D<double> fUp;                ///< Up vector in the shooting rectangle plane
-  vecgeom::Vector3D<double> fRight;             ///< Right vector in the shooting rectangle plane
-  vecgeom::Vector3D<double> fLeftC;             ///< left-down corner of the ray shooting rectangle
-  int fVerbosity             = 0;               ///< Verbosity level
-  int fNrays                 = 0;               ///< Number of rays left to propagate
-  int fSize_px               = 1024;            ///< Image pixel size in x
-  int fSize_py               = 1024;            ///< Image pixel size in y
-  int fVisDepth              = 1;               ///< Visible geometry depth
-  int fMaxDepth              = 0;               ///< Maximum geometry depth
+  double fScale     = 0;                      ///< Scaling from pixels to world coordinates
+  double fShininess = 1.;                     ///< Shininess exponent in the specular model
+  double fZoom      = 1.;                     ///< Zoom with respect to the default view
+  vecgeom::Vector3D<double> fSourceDir;       ///< Light source direction
+  vecgeom::Vector3D<double> fScreenPos;       ///< Screen position
+  vecgeom::Vector3D<double> fStart;           ///< Eye position in perspectove mode
+  vecgeom::Vector3D<double> fDir;             ///< Start direction of all rays in parallel view mode
+  vecgeom::Vector3D<double> fUp;              ///< Up vector in the shooting rectangle plane
+  vecgeom::Vector3D<double> fRight;           ///< Right vector in the shooting rectangle plane
+  vecgeom::Vector3D<double> fLeftC;           ///< left-down corner of the ray shooting rectangle
+  int fVerbosity           = 0;               ///< Verbosity level
+  int fNrays               = 0;               ///< Number of rays left to propagate
+  int fSize_px             = 1024;            ///< Image pixel size in x
+  int fSize_py             = 1024;            ///< Image pixel size in y
+  int fVisDepth            = 1;               ///< Visible geometry depth
+  int fMaxDepth            = 0;               ///< Maximum geometry depth
   adept::Color_t fBkgColor = 0xFFFFFFFF;      ///< Light color
   adept::Color_t fObjColor = 0x0000FFFF;      ///< Object color
-  ERTmodel fModel            = kRTxray;         ///< Selected RT model
-  ERTView fView              = kRTVperspective; ///< View type
+  ERTmodel fModel          = kRTxray;         ///< Selected RT model
+  ERTView fView            = kRTVperspective; ///< View type
 
   VPlacedVolumePtr_t fWorld = nullptr; ///< World volume
   vecgeom::NavStateIndex fVPstate;     ///< Navigation state corresponding to the viewpoint
@@ -179,11 +177,10 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata);
 
 /// \brief Entry point to propagate all rays
 VECCORE_ATT_HOST_DEVICE
-void PropagateRays(RaytracerData_t &data, unsigned char *rays_buffer, unsigned char *output_buffer);
+void PropagateRays(adept::BlockData<Ray_t> *rays, RaytracerData_t &data, unsigned char *rays_buffer, unsigned char *output_buffer);
 
 VECCORE_ATT_HOST_DEVICE
-adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py);
-
+adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t> *rays, int px, int py, int index);
 
 } // End namespace Raytracer
 
