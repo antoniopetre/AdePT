@@ -9,6 +9,7 @@
 #include <CopCore/Global.h>
 #include <AdePT/BlockData.h>
 #include "kernels.h"
+#include "examples/Raytracer_Benchmark/LoopNavigator.h"
 
 #include <VecGeom/base/Transformation3D.h>
 #include <VecGeom/management/GeoManager.h>

@@ -30,30 +30,6 @@ enum ERTView { kRTVparallel = 0, kRTVperspective };
 
 class VPlacedVolume;
 
-class LoopNavigator {
-  using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
-
-public:
-  VECCORE_ATT_HOST_DEVICE
-  static VPlacedVolumePtr_t LocateGlobalPoint(vecgeom::VPlacedVolume const *vol,
-                                              vecgeom::Vector3D<vecgeom::Precision> const &point,
-                                              vecgeom::NavStateIndex &path, bool top);
-  VECCORE_ATT_HOST_DEVICE
-  static VPlacedVolumePtr_t LocateGlobalPointExclVolume(vecgeom::VPlacedVolume const *vol,
-                                                        vecgeom::VPlacedVolume const *excludedvolume,
-                                                        vecgeom::Vector3D<vecgeom::Precision> const &point,
-                                                        vecgeom::NavStateIndex &path, bool top);
-  VECCORE_ATT_HOST_DEVICE
-  static VPlacedVolumePtr_t RelocatePointFromPathForceDifferent(vecgeom::Vector3D<vecgeom::Precision> const &localpoint,
-                                                                vecgeom::NavStateIndex &path);
-
-  VECCORE_ATT_HOST_DEVICE
-  static double ComputeStepAndPropagatedState(vecgeom::Vector3D<vecgeom::Precision> const &globalpoint,
-                                              vecgeom::Vector3D<vecgeom::Precision> const &globaldir,
-                                              vecgeom::Precision step_limit, vecgeom::NavStateIndex const &in_state,
-                                              vecgeom::NavStateIndex &out_state);
-};
-
 struct Ray_t {
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
 

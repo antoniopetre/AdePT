@@ -18,6 +18,7 @@
 #include <CopCore/Global.h>
 #include <AdePT/BlockData.h>
 #include "kernels.h"
+#include "examples/Raytracer_Benchmark/LoopNavigator.h"
 
 #ifdef VECGEOM_GDML
 #include <VecGeom/gdml/Frontend.h>
