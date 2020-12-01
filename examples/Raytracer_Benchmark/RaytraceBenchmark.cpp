@@ -140,11 +140,14 @@ int RaytraceBenchmarkCPU(cxx::RaytracerData_t &rtdata)
   RayAllocator hitAlloc(capacity);
   RayBlock *rays = hitAlloc.allocate(1);
 
+  // Boilerplate to get the pointers to the device functions to be used
   COPCORE_CALLABLE_DECLARE(generateFunc, generateRays);
 
+  // Create a stream to work with. On the CPU backend, this will be equivalent with: int stream = 0;
   Stream_t stream;
   StreamStruct::CreateStream(stream);
 
+  // Allocate some rays in parallel
   Launcher_t generate(stream);
   generate.Run(generateFunc, capacity, {0, 0}, rays);
 
