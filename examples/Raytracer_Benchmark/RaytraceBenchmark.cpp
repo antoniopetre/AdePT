@@ -131,23 +131,23 @@ int RaytraceBenchmarkCPU(cxx::RaytracerData_t &rtdata)
 {
   using RayBlock     = adept::BlockData<Ray_t>;
   using RayAllocator = copcore::VariableSizeObjAllocator<RayBlock, copcore::BackendType::CPU>;
-  using Launcher_t     = copcore::Launcher<copcore::BackendType::CPU>;
-  using StreamStruct   = copcore::StreamType<copcore::BackendType::CPU>;
-  using Stream_t       = typename StreamStruct::value_type;
+  using Launcher_t   = copcore::Launcher<copcore::BackendType::CPU>;
+  using StreamStruct = copcore::StreamType<copcore::BackendType::CPU>;
+  using Stream_t     = typename StreamStruct::value_type;
 
   // initialize BlockData of Ray_t structure
-  int capacity = 1 << 20;
+  int capacity = 942100;//1 << 20;
   RayAllocator hitAlloc(capacity);
   RayBlock *rays = hitAlloc.allocate(1);
 
   // Boilerplate to get the pointers to the device functions to be used
   COPCORE_CALLABLE_DECLARE(generateFunc, generateRays);
 
-  // Create a stream to work with. On the CPU backend, this will be equivalent with: int stream = 0;
+  // Create a stream to work with.
   Stream_t stream;
   StreamStruct::CreateStream(stream);
 
-  // Allocate some rays in parallel
+  // Allocate slots for the BlockData
   Launcher_t generate(stream);
   generate.Run(generateFunc, capacity, {0, 0}, rays);
 
@@ -172,7 +172,15 @@ int RaytraceBenchmarkCPU(cxx::RaytracerData_t &rtdata)
   // Run the CPU propagation kernel
   vecgeom::Stopwatch timer;
   timer.Start();
-  Raytracer::PropagateRays(rays, rtdata, input_buffer, output_buffer);
+
+  COPCORE_CALLABLE_IN_NAMESPACE_DECLARE(propagateFunc, Raytracer, PropagateRays);
+
+  Launcher_t propagate(stream);
+  propagate.Run(propagateFunc, rays->GetNused(), {0, 0}, rays, rtdata, input_buffer, output_buffer);
+
+  propagate.WaitStream();
+
+  // Raytracer::PropagateRays(0, rays, rtdata, input_buffer, output_buffer);
   auto time_cpu = timer.Stop();
   std::cout << "Run time on CPU: " << time_cpu << "\n";
 

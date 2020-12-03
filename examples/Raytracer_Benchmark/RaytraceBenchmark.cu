@@ -1,3 +1,4 @@
+
 // SPDX-FileCopyrightText: 2020 CERN
 // SPDX-License-Identifier: Apache-2.0
 
@@ -7,7 +8,6 @@
 
 #include "Raytracer.h"
 #include <CopCore/Global.h>
-#include <CopCore/launch_grid.h>
 #include <AdePT/BlockData.h>
 #include "kernels.h"
 #include "examples/Raytracer_Benchmark/LoopNavigator.h"
@@ -37,7 +37,7 @@ void check_cuda_err(cudaError_t result, char const *const func, const char *cons
 
 #define checkCudaErrors(val) check_cuda_err((val), #val, __FILE__, __LINE__)
 
-__global__ void RenderKernel(int id, adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata, char *input_buffer,
+__global__ void RenderKernel(adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata, char *input_buffer,
                              unsigned char *output_buffer)
 {
   int px = threadIdx.x + blockIdx.x * blockDim.x;
@@ -62,9 +62,6 @@ __global__ void RenderKernel(int id, adept::BlockData<Ray_t> *rays, RaytracerDat
   output_buffer[pixel_index + 3] = 255;
 }
 
-COPCORE_CALLABLE_FUNC(RenderKernel)
-
-
 __global__ void RenderLine(RaytracerData_t rtdata, int py, unsigned char *line)
 {
   int px = threadIdx.x + blockIdx.x * blockDim.x;
@@ -80,8 +77,6 @@ __global__ void RenderLine(RaytracerData_t rtdata, int py, unsigned char *line)
   line[4 * px + 2] = pixel_color.fComp.blue;
   line[4 * px + 3] = 255;
 }
-
-COPCORE_CALLABLE_FUNC(RenderLine)
 
 __global__ void RenderInterlaced(RaytracerData_t rtdata, int offset, int width, unsigned char *output)
 {
@@ -103,8 +98,6 @@ __global__ void RenderInterlaced(RaytracerData_t rtdata, int offset, int width, 
     line[4 * px + 3] = 255;
   }
 }
-
-COPCORE_CALLABLE_FUNC(RenderInterlaced)
 
 __global__ void RenderTile(adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata, int offset_x, int offset_y,
                            int tile_size_x, int tile_size_y, unsigned char *tile_in, unsigned char *tile_out)
@@ -131,8 +124,6 @@ __global__ void RenderTile(adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata
   tile_out[pixel_index + 2] = pixel_color.fComp.blue;
   tile_out[pixel_index + 3] = 255;
 }
-
-COPCORE_CALLABLE_FUNC(RenderTile)
 
 void RenderImageLines(cuda::RaytracerData_t *rtdata, unsigned char *output)
 {
@@ -181,7 +172,6 @@ void RenderImageInterlaced(cuda::RaytracerData_t *rtdata, unsigned char *output)
   checkCudaErrors(cudaFree(buffer));
   checkCudaErrors(cudaGetLastError());
 }
-
 
 // subdivide image in 16 tiles and launch each tile on a separate CUDA stream
 void RenderTiledImage(adept::BlockData<Ray_t> *rays, cuda::RaytracerData_t *rtdata, unsigned char *output_buffer,
@@ -271,7 +261,6 @@ void RenderTiledImage(adept::BlockData<Ray_t> *rays, cuda::RaytracerData_t *rtda
   checkCudaErrors(cudaGetLastError());
 }
 
-
 int RaytraceBenchmarkGPU(cuda::RaytracerData_t *rtdata, bool use_tiles, int block_size)
 {
   using RayBlock     = adept::BlockData<Ray_t>;
@@ -318,13 +307,12 @@ int RaytraceBenchmarkGPU(cuda::RaytracerData_t *rtdata, bool use_tiles, int bloc
 
   // Boilerplate to get the pointers to the device functions to be used
   COPCORE_CALLABLE_DECLARE(generateFunc, generateRays);
-  COPCORE_CALLABLE_DECLARE(renderkernelFunc, RenderKernel);
 
   // Create a stream to work with. On the CPU backend, this will be equivalent with: int stream = 0;
   Stream_t stream;
   StreamStruct::CreateStream(stream);
 
-  // Allocate some rays in parallel
+  // Allocate slots for the BlockData
   Launcher_t generate(stream);
   generate.Run(generateFunc, capacity, {0, 0}, rays);
 
@@ -345,20 +333,12 @@ int RaytraceBenchmarkGPU(cuda::RaytracerData_t *rtdata, bool use_tiles, int bloc
 
   cudaProfilerStart();
 
-  using LaunchGrid_t = copcore::launch_grid<copcore::BackendType::CUDA>;
-
   if (use_tiles) {
     RenderTiledImage(rays, rtdata, image_buffer, block_size);
   } else {
     dim3 threads(block_size, block_size);
     dim3 blocks(rtdata->fSize_px / block_size + 1, rtdata->fSize_py / block_size + 1);
-    LaunchGrid_t grid = LaunchGrid_t(blocks, threads);
-
-    Launcher_t render(stream);
-    render.Run(renderkernelFunc, rays->GetNused(), grid, rays, *rtdata, input_buffer, output_buffer);
-
-    render.WaitStream();
-    // RenderKernel<<<blocks, threads>>>(rays, *rtdata, input_buffer, output_buffer);
+    RenderKernel<<<blocks, threads>>>(rays, *rtdata, input_buffer, output_buffer);
     checkCudaErrors(
         cudaMemcpy(image_buffer, output_buffer, 4 * rtdata->fSize_px * rtdata->fSize_py, cudaMemcpyDeviceToHost));
   }

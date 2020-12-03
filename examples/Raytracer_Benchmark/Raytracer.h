@@ -41,7 +41,7 @@ struct Ray_t {
   int fNcrossed              = 0;       ///< number of crossed boundaries
   adept::Color_t fColor      = 0;       ///< pixel color
   bool fDone                 = false;   ///< done flag
-  int index                  = -1;       ///< index flag
+  int index                  = -1;      ///< index flag
 
   VECCORE_ATT_HOST_DEVICE
   static Ray_t *MakeInstanceAt(void *addr) { return new (addr) Ray_t(); }
@@ -153,7 +153,8 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata);
 
 /// \brief Entry point to propagate all rays
 VECCORE_ATT_HOST_DEVICE
-void PropagateRays(adept::BlockData<Ray_t> *rays, RaytracerData_t &data, unsigned char *rays_buffer, unsigned char *output_buffer);
+void PropagateRays(int id, adept::BlockData<Ray_t> *rays, const RaytracerData_t &data, unsigned char *rays_buffer,
+                   unsigned char *output_buffer);
 
 VECCORE_ATT_HOST_DEVICE
 adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t> *rays, int px, int py, int index);
