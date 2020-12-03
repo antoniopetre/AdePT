@@ -142,6 +142,7 @@ int RaytraceBenchmarkCPU(cxx::RaytracerData_t &rtdata)
 
   // Boilerplate to get the pointers to the device functions to be used
   COPCORE_CALLABLE_DECLARE(generateFunc, generateRays);
+  COPCORE_CALLABLE_DECLARE(renderkernelFunc, renderKernels);
 
   // Create a stream to work with.
   Stream_t stream;
@@ -156,7 +157,7 @@ int RaytraceBenchmarkCPU(cxx::RaytracerData_t &rtdata)
   // Allocate and initialize all rays on the host
   size_t raysize = Ray_t::SizeOfInstance();
   printf("=== Allocating %.3f MB of ray data on the host\n", (float)rtdata.fNrays * raysize / 1048576);
-  unsigned char *input_buffer  = new unsigned char[rtdata.fNrays * raysize];
+  char *input_buffer  = new char[rtdata.fNrays * raysize];
   unsigned char *output_buffer = new unsigned char[4 * rtdata.fNrays * sizeof(char)];
 
   // Initialize the navigation state for the view point
@@ -173,14 +174,11 @@ int RaytraceBenchmarkCPU(cxx::RaytracerData_t &rtdata)
   vecgeom::Stopwatch timer;
   timer.Start();
 
-  COPCORE_CALLABLE_IN_NAMESPACE_DECLARE(propagateFunc, Raytracer, PropagateRays);
+  Launcher_t renderKernel(stream);
+  renderKernel.Run(renderkernelFunc, rays->GetNused(), {0, 0}, rays, rtdata, input_buffer, output_buffer);
 
-  Launcher_t propagate(stream);
-  propagate.Run(propagateFunc, rays->GetNused(), {0, 0}, rays, rtdata, input_buffer, output_buffer);
+  renderKernel.WaitStream();
 
-  propagate.WaitStream();
-
-  // Raytracer::PropagateRays(0, rays, rtdata, input_buffer, output_buffer);
   auto time_cpu = timer.Stop();
   std::cout << "Run time on CPU: " << time_cpu << "\n";
 

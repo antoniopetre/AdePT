@@ -265,6 +265,7 @@ void PropagateRays(int id, adept::BlockData<Ray_t> *rays, const RaytracerData_t 
   output_buffer[pixel_index + 2] = pixel_color.fComp.blue;
   output_buffer[pixel_index + 3] = 255;
 }
+
 COPCORE_CALLABLE_FUNC(PropagateRays)
 
 

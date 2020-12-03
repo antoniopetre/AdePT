@@ -37,7 +37,7 @@ void check_cuda_err(cudaError_t result, char const *const func, const char *cons
 
 #define checkCudaErrors(val) check_cuda_err((val), #val, __FILE__, __LINE__)
 
-__global__ void RenderKernel(adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata, char *input_buffer,
+__device__ void RenderKernel(int id, adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata, char *input_buffer,
                              unsigned char *output_buffer)
 {
   int px = threadIdx.x + blockIdx.x * blockDim.x;
@@ -60,7 +60,9 @@ __global__ void RenderKernel(adept::BlockData<Ray_t> *rays, RaytracerData_t rtda
   output_buffer[pixel_index + 1] = pixel_color.fComp.green;
   output_buffer[pixel_index + 2] = pixel_color.fComp.blue;
   output_buffer[pixel_index + 3] = 255;
+
 }
+
 
 __global__ void RenderLine(RaytracerData_t rtdata, int py, unsigned char *line)
 {
@@ -307,6 +309,7 @@ int RaytraceBenchmarkGPU(cuda::RaytracerData_t *rtdata, bool use_tiles, int bloc
 
   // Boilerplate to get the pointers to the device functions to be used
   COPCORE_CALLABLE_DECLARE(generateFunc, generateRays);
+  COPCORE_CALLABLE_DECLARE(renderkernelFunc, renderKernels);
 
   // Create a stream to work with. On the CPU backend, this will be equivalent with: int stream = 0;
   Stream_t stream;
@@ -338,7 +341,11 @@ int RaytraceBenchmarkGPU(cuda::RaytracerData_t *rtdata, bool use_tiles, int bloc
   } else {
     dim3 threads(block_size, block_size);
     dim3 blocks(rtdata->fSize_px / block_size + 1, rtdata->fSize_py / block_size + 1);
-    RenderKernel<<<blocks, threads>>>(rays, *rtdata, input_buffer, output_buffer);
+
+    Launcher_t renderKernel(stream);
+    renderKernel.Run(renderkernelFunc, rays->GetNused(), {0, 0}, rays, *rtdata, input_buffer, output_buffer);
+    renderKernel.WaitStream();
+
     checkCudaErrors(
         cudaMemcpy(image_buffer, output_buffer, 4 * rtdata->fSize_px * rtdata->fSize_py, cudaMemcpyDeviceToHost));
   }
