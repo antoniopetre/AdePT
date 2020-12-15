@@ -12,6 +12,7 @@
 
 #include <CopCore/Global.h>
 #include <AdePT/BlockData.h>
+#include <AdePT/MParray.h>
 
 #include <VecGeom/base/Global.h>
 #include <VecGeom/base/Vector3D.h>
@@ -38,6 +39,8 @@ struct Ray_t {
   adept::Color_t fColor      = 0;       ///< pixel color
   bool fDone                 = false;   ///< done flag
   int index                  = -1;      ///< index flag
+  float intensity            = 1;       ///< intensity of the ray
+  int secondary_rays         = 0;       ///< no. of reflected rays
 
   VECCORE_ATT_HOST_DEVICE
   static Ray_t *MakeInstanceAt(void *addr) { return new (addr) Ray_t(); }
@@ -144,7 +147,8 @@ VECCORE_ATT_HOST_DEVICE
 void InitializeModel(VPlacedVolumePtr_t world, RaytracerData_t &data);
 
 VECCORE_ATT_HOST_DEVICE
-void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata);
+void ApplyRTmodel(adept::BlockData<Ray_t> *secondary_rays, Ray_t &ray, double step,
+                  RaytracerData_t const &rtdata, int times);
 
 /// \brief Entry point to propagate all rays
 VECCORE_ATT_HOST_DEVICE
@@ -152,7 +156,9 @@ void PropagateRays(adept::BlockData<Ray_t> *rays, RaytracerData_t &data, unsigne
                    unsigned char *output_buffer);
 
 VECCORE_ATT_HOST_DEVICE
-adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t> *rays, int px, int py, int index);
+adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t> *rays, adept::BlockData<Ray_t> *secondary_rays,
+                             int px, int py, int index, int times);
+  
 
 } // End namespace Raytracer
 

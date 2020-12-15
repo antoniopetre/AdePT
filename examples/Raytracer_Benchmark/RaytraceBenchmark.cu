@@ -23,6 +23,7 @@
 #include <cassert>
 #include <cstdio>
 
+/*
 __global__ void RenderTile(adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata, int offset_x, int offset_y,
                            int tile_size_x, int tile_size_y, unsigned char *tile_in, unsigned char *tile_out)
 {
@@ -136,6 +137,7 @@ void RenderTiledImage(adept::BlockData<Ray_t> *rays, cuda::RaytracerData_t *rtda
   }
   COPCORE_CUDA_CHECK(cudaGetLastError());
 }
+*/
 
 void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata) {
   

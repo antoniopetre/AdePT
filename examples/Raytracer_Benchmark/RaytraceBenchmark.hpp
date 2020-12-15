@@ -8,6 +8,7 @@
 #include <AdePT/ArgParser.h>
 #include <AdePT/BlockData.h>
 #include <AdePT/LoopNavigator.h>
+#include <AdePT/MParray.h>
 
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/management/GeoManager.h>
@@ -99,11 +100,35 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   using Launcher_t   = copcore::Launcher<backend>;
   using StreamStruct = copcore::StreamType<backend>;
   using Stream_t     = typename StreamStruct::value_type;
+  using Array_t        = adept::MParray;
+  using ArrayAllocator = copcore::VariableSizeObjAllocator<Array_t, backend>;
+
+  int chunk = 1;
+  if(rtdata->fModel == kRTfresnel)
+    chunk = 100;
+
+  int no_elem = ceil(rtdata->fSize_px*rtdata->fSize_py/chunk);
 
   // initialize BlockData of Ray_t structure
-  int capacity = 1 << 20;
+  int capacity = 1000000;//normally 1<<20
   RayAllocator hitAlloc(capacity);
   RayBlock *rays = hitAlloc.allocate(1);
+
+  int capacity_sec = 1000000;//normally this should be 1<<22
+  RayAllocator hitAllocsec(capacity_sec);
+  RayBlock *secondaries = hitAllocsec.allocate(1);
+
+  // array for rays indices
+  // char *buffer1[capacity_sec];
+  // adept::MParray **pixel_indices = nullptr;
+  // cudaMallocManaged(&pixel_indices, capacity_sec * sizeof(adept::MParray *));
+  // size_t buffersize = adept::MParray::SizeOfInstance(0);
+
+  // for (int i = 0; i < capacity_sec; i++) {
+  //   buffer1[i] = nullptr;
+  //   cudaMallocManaged(&buffer1[i], buffersize);
+  //   pixel_indices[i] = adept::MParray::MakeInstanceAt(0, buffer1[i]);
+  // }
 
   // Boilerplate to get the pointers to the device functions to be used
   COPCORE_CALLABLE_DECLARE(generateFunc, generateRays);
@@ -116,6 +141,8 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   // Allocate slots for the BlockData
   Launcher_t generate(stream);
   generate.Run(generateFunc, capacity, {0, 0}, rays);
+
+  generate.Run(generateFunc, capacity_sec, {0, 0}, secondaries);
 
   generate.WaitStream();
 
@@ -138,12 +165,25 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   timer.Start();
 
   if (backend == copcore::BackendType::CUDA && use_tiles) {
-    RenderTiledImage(rays, (RaytracerData_t *)rtdata, output_buffer, block_size);
+    // RenderTiledImage(rays, secondaries, (RaytracerData_t *)rtdata, output_buffer, block_size);
   } else {
     Launcher_t renderKernel(stream);
-    renderKernel.Run(renderkernelFunc, rays->GetNused(), {0, 0}, rays, *rtdata, input_buffer, output_buffer);
-    renderKernel.WaitStream();
+    for (int i = 0; i < chunk; ++i)
+    {
+      renderKernel.Run(renderkernelFunc, no_elem, {0, 0}, rays, secondaries, *rtdata, input_buffer, output_buffer, i, false);
+      renderKernel.WaitStream(); 
+
+      if(rtdata->fModel == kRTfresnel) {
+        printf("%d%%\n", i+1);
+      }
+  
+    }
+    
   }
+
+
+
+  
 
   auto time_cpu = timer.Stop();
   std::cout << "Run time: " << time_cpu << "\n";
