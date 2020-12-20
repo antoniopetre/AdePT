@@ -90,7 +90,7 @@ void InitializeModel(vecgeom::VPlacedVolume const *world, RaytracerData_t &rtdat
 }
 
 adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t> *rays, adept::BlockData<Ray_t> *secondary_rays,
-                           int px, int py, int index, int times)
+                           int px, int py, int index, int times, adept::MParray *pixel_indices)
 {
   constexpr int kMaxTries = 10;
   constexpr double kPush  = 1.e-8;
@@ -146,7 +146,7 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t
     ray.fNcrossed++;
     ray.fVolume = nextvol;
     if (ray.fVolume == nullptr) ray.fDone = true;
-    if (nextvol) Raytracer::ApplyRTmodel(secondary_rays, ray, snext, rtdata, times);
+    if (nextvol) Raytracer::ApplyRTmodel(secondary_rays, ray, snext, rtdata, times, pixel_indices);
     auto tmpstate  = ray.fCrtState;
     ray.fCrtState  = ray.fNextState;
     ray.fNextState = tmpstate;
@@ -157,7 +157,7 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t
   return ray.fColor;
 }
 
-void ApplyRTmodel(adept::BlockData<Ray_t> *secondary_rays, Ray_t &ray, double step, RaytracerData_t const &rtdata, int times)
+void ApplyRTmodel(adept::BlockData<Ray_t> *secondary_rays, Ray_t &ray, double step, RaytracerData_t const &rtdata, int times, adept::MParray *pixel_indices)
 {
 
   int depth = ray.fNextState.GetLevel();
@@ -263,10 +263,13 @@ void ApplyRTmodel(adept::BlockData<Ray_t> *secondary_rays, Ray_t &ray, double st
       // 10 reflected rays were allocated for each ray
 
       // the case when we find the first reflected ray
-      int new_index = 10*ray.index;
-      if (ray.secondary_rays > 0) {
-        new_index += ray.secondary_rays;
-      }
+      // int new_index = 10*ray.index;
+      // if (ray.secondary_rays > 0) {
+      //   new_index += ray.secondary_rays;
+      // }
+      int new_index = pixel_indices->back();
+      pixel_indices->push_back(new_index+1);
+      ray.rays[ray.secondary_rays] = new_index;
       
       ray.secondary_rays++;
 

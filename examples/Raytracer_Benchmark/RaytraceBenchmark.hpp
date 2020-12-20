@@ -96,7 +96,9 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   rtdata->Print();
 
   using RayBlock     = adept::BlockData<Ray_t>;
+  using RayRayBlock     = adept::BlockData<RayBlock>;
   using RayAllocator = copcore::VariableSizeObjAllocator<RayBlock, backend>;
+  using RayRay = copcore::VariableSizeObjAllocator<RayRayBlock, backend>;
   using Launcher_t   = copcore::Launcher<backend>;
   using StreamStruct = copcore::StreamType<backend>;
   using Stream_t     = typename StreamStruct::value_type;
@@ -110,17 +112,20 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   int no_elem = ceil(rtdata->fSize_px*rtdata->fSize_py/chunk);
 
   // initialize BlockData of Ray_t structure
-  int capacity = 1000000;//normally 1<<20
+  int capacity = 1000000;
   RayAllocator hitAlloc(capacity);
   RayBlock *rays = hitAlloc.allocate(1);
 
-  int capacity_sec = 1000000;//normally this should be 1<<22
+  int capacity_sec = 1000000;
   RayAllocator hitAllocsec(capacity_sec);
   RayBlock *secondaries = hitAllocsec.allocate(1);
 
+  ArrayAllocator arrayAlloc(capacity);
+  Array_t *pixel_indices = arrayAlloc.allocate(1);
+
   // array for rays indices
   // char *buffer1[capacity_sec];
-  // adept::MParray **pixel_indices = nullptr;
+  // adept::MParray *pixel_indices = nullptr;
   // cudaMallocManaged(&pixel_indices, capacity_sec * sizeof(adept::MParray *));
   // size_t buffersize = adept::MParray::SizeOfInstance(0);
 
@@ -170,7 +175,8 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
     Launcher_t renderKernel(stream);
     for (int i = 0; i < chunk; ++i)
     {
-      renderKernel.Run(renderkernelFunc, no_elem, {0, 0}, rays, secondaries, *rtdata, input_buffer, output_buffer, i, false);
+      renderKernel.Run(renderkernelFunc, no_elem, {0, 0}, rays, secondaries, *rtdata,
+                       input_buffer, output_buffer, i, false, pixel_indices);
       renderKernel.WaitStream(); 
 
       if(rtdata->fModel == kRTfresnel) {

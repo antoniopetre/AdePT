@@ -24,7 +24,7 @@ COPCORE_CALLABLE_FUNC(generateRays)
 
 VECCORE_ATT_HOST_DEVICE
 void renderKernels(int id, adept::BlockData<Ray_t> *rays, adept::BlockData<Ray_t> *secondary_rays, const RaytracerData_t &rtdata, NavIndex_t *input_buffer,
-                   NavIndex_t *output_buffer, int time, bool reflected)
+                   NavIndex_t *output_buffer, int time, bool reflected, adept::MParray *pixel_indices)
 {
   // Propagate all rays and write out the image on the backend
   // size_t n10  = 0.1 * rtdata.fNrays;
@@ -58,7 +58,7 @@ void renderKernels(int id, adept::BlockData<Ray_t> *rays, adept::BlockData<Ray_t
    
   }
 
-  auto pixel_color = Raytracer::RaytraceOne(rtdata, rays, secondary_rays, px, py, id, time);
+  auto pixel_color = Raytracer::RaytraceOne(rtdata, rays, secondary_rays, px, py, id, time, pixel_indices);
 
   int pixel_index                 = 4 * ray_index;
   output_buffer[pixel_index + 0] += pixel_color.fComp.red;
@@ -69,7 +69,7 @@ void renderKernels(int id, adept::BlockData<Ray_t> *rays, adept::BlockData<Ray_t
   if(rtdata.fModel == kRTfresnel) {
     for (int i = 0; i < (*rays)[id].secondary_rays; ++i)
     {
-      pixel_color = Raytracer::RaytraceOne(rtdata, secondary_rays, rays, px, py, 10*id + i, time);
+      pixel_color = Raytracer::RaytraceOne(rtdata, secondary_rays, rays, px, py, (*rays)[id].rays[i], time, pixel_indices);
       output_buffer[pixel_index + 0] += pixel_color.fComp.red;
       output_buffer[pixel_index + 1] += pixel_color.fComp.green;
       output_buffer[pixel_index + 2] += pixel_color.fComp.blue;
