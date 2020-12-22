@@ -12,6 +12,7 @@
 
 #include <CopCore/Global.h>
 #include <AdePT/BlockData.h>
+#include <AdePT/MParray.h>
 
 #include <VecGeom/base/Global.h>
 #include <VecGeom/base/Vector3D.h>
@@ -38,6 +39,8 @@ struct Ray_t {
   adept::Color_t fColor      = 0;       ///< pixel color
   bool fDone                 = false;   ///< done flag
   int index                  = -1;      ///< index flag
+  int generation             = 0;       ///< ray generation
+  float intensity            = 1;       ///< ray intensity
 
   __host__ __device__
   static Ray_t *MakeInstanceAt(void *addr) { return new (addr) Ray_t(); }
@@ -55,7 +58,8 @@ struct Ray_t {
   }
 
   __host__ __device__
-  vecgeom::Vector3D<double> Refract(vecgeom::Vector3D<double> const &normal, float ior1, float ior2, bool &totalreflect)
+  vecgeom::Vector3D<double> Refract(vecgeom::Vector3D<double> const &normal, float ior1, float ior2,
+                                                        bool &totalreflect)
   {
     // ior1, ior2 are the refraction indices of the exited and entered volumes respectively
     float cosi                  = fDir.Dot(normal);
@@ -99,6 +103,7 @@ struct Ray_t {
 struct RaytracerData_t {
 
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
+  using RayBlock           = adept::BlockData<Ray_t>;
 
   double fScale     = 0;                      ///< Scaling from pixels to world coordinates
   double fShininess = 1.;                     ///< Shininess exponent in the specular model
@@ -119,6 +124,9 @@ struct RaytracerData_t {
   adept::Color_t fObjColor = 0x0000FFFF;      ///< Object color
   ERTmodel fModel          = kRTxray;         ///< Selected RT model
   ERTView fView            = kRTVperspective; ///< View type
+
+  adept::BlockData<RayBlock *> *rays = nullptr; ///< pointer to rays containers
+  adept::Atomic_t<int> *indices      = nullptr; ///< indices used for reflected rays
 
   VPlacedVolumePtr_t fWorld = nullptr; ///< World volume
   vecgeom::NavStateIndex fVPstate;     ///< Navigation state corresponding to the viewpoint
@@ -144,15 +152,16 @@ __host__ __device__
 void InitializeModel(VPlacedVolumePtr_t world, RaytracerData_t &data);
 
 __host__ __device__
-void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata);
+void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int index);
 
 /// \brief Entry point to propagate all rays
 __host__ __device__
 void PropagateRays(adept::BlockData<Ray_t> *rays, RaytracerData_t &data, unsigned char *rays_buffer,
-                   unsigned char *output_buffer);
+                                       unsigned char *output_buffer);
 
 __host__ __device__
-adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t> *rays, int px, int py, int index);
+adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t> *rays, int px,
+                                               int py, int index);
 
 } // End namespace Raytracer
 

@@ -22,8 +22,10 @@ union Color_t {
 
   __host__ __device__
   Color_t() : fColor(0) {}
+
   __host__ __device__
   Color_t(unsigned int col) { fColor = col; }
+
   __host__ __device__
   Color_t(unsigned char r, unsigned char g, unsigned char b, unsigned char a)
   {
@@ -32,6 +34,7 @@ union Color_t {
     fComp.blue  = b;
     fComp.alpha = a;
   }
+
   __host__ __device__
   Color_t(float r, float g, float b, float a)
   {
@@ -82,12 +85,16 @@ union Color_t {
 
   __host__ __device__
   float Red() const { return 1. / 255 * fComp.red; }
+
   __host__ __device__
   float Green() const { return 1. / 255 * fComp.green; }
+
   __host__ __device__
   float Blue() const { return 1. / 255 * fComp.blue; }
+
   __host__ __device__
   float Alpha() const { return 1. / 255 * fComp.alpha; }
+
   int GetColor() const { return fColor; }
 
   __host__ __device__

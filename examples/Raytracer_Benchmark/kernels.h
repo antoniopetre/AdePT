@@ -9,6 +9,8 @@
 
 inline namespace COPCORE_IMPL {
 
+using RayBlock = adept::BlockData<Ray_t>;
+
 // Alocate slots for the BlockData
 __host__ __device__
 void generateRays(int id, adept::BlockData<Ray_t> *rays)
@@ -22,11 +24,10 @@ void generateRays(int id, adept::BlockData<Ray_t> *rays)
 COPCORE_CALLABLE_FUNC(generateRays)
 
 __host__ __device__
-void renderKernels(int id, adept::BlockData<Ray_t> *rays, const RaytracerData_t &rtdata, NavIndex_t *input_buffer,
-                   NavIndex_t *output_buffer)
+void renderKernels(int id, const RaytracerData_t &rtdata, NavIndex_t *input_buffer,
+                                       NavIndex_t *output_buffer, int generation)
 {
   // Propagate all rays and write out the image on the backend
-  // size_t n10  = 0.1 * rtdata.fNrays;
 
   int ray_index = id;
 
@@ -40,19 +41,23 @@ void renderKernels(int id, adept::BlockData<Ray_t> *rays, const RaytracerData_t 
 
   if ((px >= rtdata.fSize_px) || (py >= rtdata.fSize_py)) return;
 
-  // fprintf(stderr, "P3\n%d %d\n255\n", fSize_px, fSize_py);
-  // if ((ray_index % n10) == 0) printf("%lu %%\n", 10 * ray_index / n10);
-  Ray_t *ray = (Ray_t *)(input_buffer + ray_index * sizeof(Ray_t));
-  ray->index = ray_index;
+  adept::BlockData<RayBlock *> *rays_containers = rtdata.rays;
+  RayBlock *rays                                = (*rays_containers)[generation];
 
-  (*rays)[ray_index] = *ray;
+  // For the first generation, "create" the rays
+  if (generation == 0) {
+    Ray_t *ray = (Ray_t *)(input_buffer + ray_index * sizeof(Ray_t));
+    ray->index = ray_index;
 
-  auto pixel_color = Raytracer::RaytraceOne(rtdata, rays, px, py, ray->index);
+    (*rays)[ray_index] = *ray;
+  }
 
-  int pixel_index                = 4 * ray_index;
-  output_buffer[pixel_index + 0] = pixel_color.fComp.red;
-  output_buffer[pixel_index + 1] = pixel_color.fComp.green;
-  output_buffer[pixel_index + 2] = pixel_color.fComp.blue;
+  auto pixel_color = Raytracer::RaytraceOne(rtdata, rays, px, py, ray_index);
+
+  int pixel_index = 4 * ray_index;
+  output_buffer[pixel_index + 0] += pixel_color.fComp.red;
+  output_buffer[pixel_index + 1] += pixel_color.fComp.green;
+  output_buffer[pixel_index + 2] += pixel_color.fComp.blue;
   output_buffer[pixel_index + 3] = 255;
 }
 COPCORE_CALLABLE_FUNC(renderKernels)

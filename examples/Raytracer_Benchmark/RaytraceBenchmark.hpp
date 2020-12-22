@@ -8,6 +8,7 @@
 #include <AdePT/ArgParser.h>
 #include <AdePT/BlockData.h>
 #include <AdePT/LoopNavigator.h>
+#include <AdePT/MParray.h>
 
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/management/GeoManager.h>
@@ -74,8 +75,8 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   OPTION_INT(use_tiles, 0);  // run on GPU in tiled mode
   OPTION_INT(block_size, 8); // run on GPU in tiled mode
 
-  copcore::Allocator<RaytracerData_t, backend> rayAlloc;
-  RaytracerData_t *rtdata = rayAlloc.allocate(1);
+  copcore::Allocator<RaytracerData_t, backend> raydataAlloc;
+  RaytracerData_t *rtdata = raydataAlloc.allocate(1);
 
   rtdata->fScreenPos.Set(screenx, screeny, screenz);
   rtdata->fUp.Set(upx, upy, upz);
@@ -94,16 +95,35 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
 
   rtdata->Print();
 
-  using RayBlock     = adept::BlockData<Ray_t>;
-  using RayAllocator = copcore::VariableSizeObjAllocator<RayBlock, backend>;
-  using Launcher_t   = copcore::Launcher<backend>;
-  using StreamStruct = copcore::StreamType<backend>;
-  using Stream_t     = typename StreamStruct::value_type;
+  using RayBlock       = adept::BlockData<Ray_t>;
+  using RayAllocator   = copcore::VariableSizeObjAllocator<RayBlock, backend>;
+  using Block          = adept::BlockData<RayBlock *>;
+  using BlockAllocator = copcore::VariableSizeObjAllocator<Block, backend>;
+  using Launcher_t     = copcore::Launcher<backend>;
+  using StreamStruct   = copcore::StreamType<backend>;
+  using Stream_t       = typename StreamStruct::value_type;
+
+  int capacity       = 1 << 20;
+  int no_generations = 1;
+
+  if (rtdata->fModel == kRTfresnel) no_generations = 10;
 
   // initialize BlockData of Ray_t structure
-  int capacity = 1 << 20;
-  RayAllocator hitAlloc(capacity);
-  RayBlock *rays = hitAlloc.allocate(1);
+  BlockAllocator rayAlloc(capacity);
+  Block *rays = rayAlloc.allocate(no_generations);
+
+  // initialize containers for indices
+  copcore::Allocator<adept::Atomic_t<int>, backend> intAlloc;
+  adept::Atomic_t<int> *indices = intAlloc.allocate(no_generations * sizeof(adept::Atomic_t<int>));
+
+  rtdata->rays    = rays;
+  rtdata->indices = indices;
+
+  for (int i = 0; i < no_generations; i++) {
+    RayAllocator rayAlloc(capacity);
+    (*rays)[i] = rayAlloc.allocate(1);
+    rtdata->indices[i].store(0);
+  }
 
   // Boilerplate to get the pointers to the device functions to be used
   COPCORE_CALLABLE_DECLARE(generateFunc, generateRays);
@@ -112,10 +132,12 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   // Create a stream to work with.
   Stream_t stream;
   StreamStruct::CreateStream(stream);
+  Launcher_t generate(stream);
 
   // Allocate slots for the BlockData
-  Launcher_t generate(stream);
-  generate.Run(generateFunc, capacity, {0, 0}, rays);
+  for (int i = 0; i < no_generations; ++i) {
+    generate.Run(generateFunc, capacity, {0, 0}, (*rays)[i]);
+  }
 
   generate.WaitStream();
 
@@ -138,11 +160,13 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   timer.Start();
 
   if (backend == copcore::BackendType::CUDA && use_tiles) {
-    RenderTiledImage(rays, (RaytracerData_t *)rtdata, output_buffer, block_size);
+    RenderTiledImage((*rays)[0], (RaytracerData_t *)rtdata, output_buffer, block_size);
   } else {
     Launcher_t renderKernel(stream);
-    renderKernel.Run(renderkernelFunc, rays->GetNused(), {0, 0}, rays, *rtdata, input_buffer, output_buffer);
-    renderKernel.WaitStream();
+    for (int i = 0; i < no_generations; i++) {
+      renderKernel.Run(renderkernelFunc, (*rays)[0]->GetNused(), {0, 0}, *rtdata, input_buffer, output_buffer, i);
+      renderKernel.WaitStream();
+    }
   }
 
   auto time_cpu = timer.Stop();

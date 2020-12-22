@@ -31,6 +31,8 @@
 
 inline namespace COPCORE_IMPL {
 
+using RayBlock = adept::BlockData<Ray_t>;
+
 void RaytracerData_t::Print()
 {
   printf("  screen_pos(%g, %g, %g) screen_size(%d, %d)\n", fScreenPos[0], fScreenPos[1], fScreenPos[2], fSize_px,
@@ -143,7 +145,8 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t
     ray.fNcrossed++;
     ray.fVolume = nextvol;
     if (ray.fVolume == nullptr) ray.fDone = true;
-    if (nextvol) Raytracer::ApplyRTmodel(ray, snext, rtdata);
+    if (nextvol) Raytracer::ApplyRTmodel(ray, snext, rtdata, index);
+
     auto tmpstate  = ray.fCrtState;
     ray.fCrtState  = ray.fNextState;
     ray.fNextState = tmpstate;
@@ -152,9 +155,10 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t
   return ray.fColor;
 }
 
-void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
+void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int index)
 {
   int depth = ray.fNextState.GetLevel();
+
   if (rtdata.fModel == kRTspecular) { // specular reflection
     // Calculate normal at the hit point
     bool valid = ray.fVolume != nullptr && depth >= rtdata.fVisDepth;
@@ -199,7 +203,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
       m.InverseTransformDirection(lnorm, norm);
       // Compute fraction of reflected light
       float kr = 0;
-      ray.Fresnel(norm, 1.5, 1, kr); // we need to take refraction coeff from geometry
+      ray.Fresnel(norm, 1.5, 1, kr); // compute refraction coeff from geometry
       vecgeom::Vector3D<double> reflected, refracted;
       // Color_t col_reflected = 0, col_refracted = 0;
       if (kr < 1) {
@@ -211,6 +215,64 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
       // col_reflected = cast_ray(reflected);
       // ray.fColor = kr * col_reflected + (1 - kr) * col_refracted
       // ray.fDone = true;
+
+      auto object_color_refracted = rtdata.fObjColor;
+      object_color_refracted *= (1 - kr);
+
+      auto object_color_reflected = rtdata.fObjColor;
+      object_color_reflected *= kr;
+
+      // BlockData with rays of current generation
+      RayBlock *rays = (*rtdata.rays)[ray.generation % 10];
+
+      // Update the refracted ray
+      if (ray.intensity > 0) {
+        ray.fDir = refracted;
+        ray.intensity -= kr;
+        ray.fColor += object_color_refracted;
+      }
+
+      // Threshold
+      if (ray.intensity < 0.01) {
+        ray.intensity  = 0;
+        ray.fDone      = true;
+        (*rays)[index] = ray;
+        return;
+      }
+
+      // Update the generation for the refracted ray and add it to the BlockData
+      ray.generation++;
+      (*rays)[index] = ray;
+
+      // Reflected ray
+      Ray_t reflected_ray = ray;
+
+      // Update the reflected ray
+      if (reflected_ray.intensity > 0) {
+        reflected_ray.fDir      = reflected;
+        reflected_ray.intensity = kr;
+        reflected_ray.fColor += object_color_reflected;
+      }
+
+      // Threshold
+      if (reflected_ray.intensity < 0.01) {
+        reflected_ray.intensity = 0;
+        reflected_ray.fDone     = true;
+        return;
+      }
+
+      // Update the last index where the reflected_ray is added in BlockData
+      rtdata.indices[ray.generation % 10].fetch_add(1);
+
+      // BlockData with rays of next generation
+      RayBlock *reflected_rays = (*rtdata.rays)[ray.generation % 10];
+
+      // Find which generation needs reshuffling
+      // if (rtdata.indices[ray.generation % 10].load() > 1048576)
+      //   printf("reshuffle for %d generation\n", ray.generation);
+
+      // Add in the BlockData the reflected_ray
+      (*reflected_rays)[rtdata.indices[ray.generation % 10].load() % 1048576] = reflected_ray;
     }
   }
   if (ray.fVolume == nullptr) ray.fDone = true;
