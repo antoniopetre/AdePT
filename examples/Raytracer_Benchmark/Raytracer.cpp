@@ -31,6 +31,8 @@
 
 inline namespace COPCORE_IMPL {
 
+using RayBlock = adept::BlockData<Ray_t>;
+
 void RaytracerData_t::Print()
 {
   printf("  screen_pos(%g, %g, %g) screen_size(%d, %d)\n", fScreenPos[0], fScreenPos[1], fScreenPos[2], fSize_px,
@@ -89,13 +91,13 @@ void InitializeModel(vecgeom::VPlacedVolume const *world, RaytracerData_t &rtdat
   rtdata.fNrays = rtdata.fSize_px * rtdata.fSize_py;
 }
 
-adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t> *rays, int px, int py, int index)
+adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, int px, int py, int index, int generation)
 {
   constexpr int kMaxTries = 10;
   constexpr double kPush  = 1.e-8;
 
-  Ray_t ray = (*rays)[index];
-
+  Ray_t ray = (*rtdata.sparse_rays[generation])[index];
+  
   vecgeom::Vector3D<double> pos_onscreen = rtdata.fLeftC + rtdata.fScale * (px * rtdata.fRight + py * rtdata.fUp);
   vecgeom::Vector3D<double> start        = (rtdata.fView == kRTVperspective) ? rtdata.fStart : pos_onscreen;
   ray.fPos                               = start;
@@ -143,18 +145,21 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t
     ray.fNcrossed++;
     ray.fVolume = nextvol;
     if (ray.fVolume == nullptr) ray.fDone = true;
-    if (nextvol) Raytracer::ApplyRTmodel(ray, snext, rtdata);
+    if (nextvol) Raytracer::ApplyRTmodel(ray, snext, rtdata, index);
+
     auto tmpstate  = ray.fCrtState;
     ray.fCrtState  = ray.fNextState;
     ray.fNextState = tmpstate;
   }
-
+  
   return ray.fColor;
 }
 
-void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
+
+void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int index)
 {
   int depth = ray.fNextState.GetLevel();
+
   if (rtdata.fModel == kRTspecular) { // specular reflection
     // Calculate normal at the hit point
     bool valid = ray.fVolume != nullptr && depth >= rtdata.fVisDepth;
@@ -191,6 +196,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
   } else if (rtdata.fModel == kRTfresnel) {
     bool valid = ray.fVolume != nullptr && depth >= rtdata.fVisDepth;
     if (valid) {
+      
       vecgeom::Transformation3D m;
       ray.fNextState.TopMatrix(m);
       auto localpoint = m.Transform(ray.fPos);
@@ -199,7 +205,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
       m.InverseTransformDirection(lnorm, norm);
       // Compute fraction of reflected light
       float kr = 0;
-      ray.Fresnel(norm, 1.5, 1, kr); // we need to take refraction coeff from geometry
+      ray.Fresnel(norm, 1.5, 1, kr); // compute refraction coeff from geometry
       vecgeom::Vector3D<double> reflected, refracted;
       // Color_t col_reflected = 0, col_refracted = 0;
       if (kr < 1) {
@@ -211,6 +217,51 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
       // col_reflected = cast_ray(reflected);
       // ray.fColor = kr * col_reflected + (1 - kr) * col_refracted
       // ray.fDone = true;
+
+
+      auto object_color_refracted = rtdata.fObjColor;
+      object_color_refracted *= (1 - kr);
+
+      auto object_color_reflected = rtdata.fObjColor;
+      object_color_reflected *= kr;
+
+      // Update the refracted ray
+      if (ray.intensity > 0) {
+        ray.fDir = refracted;
+        ray.intensity -= kr;
+        ray.fColor += object_color_refracted;
+      }
+
+      // Threshold
+      if (ray.intensity < 0.01) {
+        ray.intensity  = 0;
+        ray.fDone      = true;
+        return;
+      }
+
+      // Update the generation for the refracted ray and add it to the BlockData
+      ray.generation++;
+      
+      // Reflected ray
+      Ray_t reflected_ray = ray;
+
+      // Update the reflected ray
+      if (reflected_ray.intensity > 0) {
+        reflected_ray.fDir      = reflected;
+        reflected_ray.intensity = kr;
+        reflected_ray.fColor += object_color_reflected;
+      }
+
+      // Threshold
+      if (reflected_ray.intensity < 0.01) {
+        reflected_ray.intensity = 0;
+        reflected_ray.fDone     = true;
+        return;
+      }
+
+      // Add in the BlockData the reflected_ray
+      rtdata.sparse_rays[ray.generation % 10]->next_free(reflected_ray);
+      
     }
   }
   if (ray.fVolume == nullptr) ray.fDone = true;
@@ -242,7 +293,7 @@ void PropagateRays(int id, adept::BlockData<Ray_t> *rays, const RaytracerData_t 
 
   (*rays)[ray_index] = *ray;
 
-  auto pixel_color = RaytraceOne(rtdata, rays, px, py, ray->index);
+  auto pixel_color = RaytraceOne(rtdata, px, py, ray->index, 0);
 
   int pixel_index                = 4 * ray_index;
   output_buffer[pixel_index + 0] = pixel_color.fComp.red;
