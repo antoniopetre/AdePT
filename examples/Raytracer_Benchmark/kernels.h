@@ -18,7 +18,7 @@ void generateRays(int id, adept::BlockData<Ray_t> *rays)
   auto ray = rays->NextElement();
   if (!ray) COPCORE_EXCEPTION("generateRays: Not enough space for rays");
 
-  ray->index = id;
+  ray->index = -1;
 }
 
 COPCORE_CALLABLE_FUNC(generateRays)
@@ -29,7 +29,15 @@ void renderKernels(int id, const RaytracerData_t &rtdata, NavIndex_t *input_buff
 {
   // Propagate all rays and write out the image on the backend
 
+  adept::BlockData<RayBlock *> *rays_containers = rtdata.rays;
+  RayBlock *rays                                = (*rays_containers)[generation];
+
+  if (generation > 0 && (*rays)[id].index == -1) return;
+
   int ray_index = id;
+
+  if (generation > 0)
+    ray_index = (*rays)[id].index;
 
   int px = 0;
   int py = 0;
@@ -41,18 +49,15 @@ void renderKernels(int id, const RaytracerData_t &rtdata, NavIndex_t *input_buff
 
   if ((px >= rtdata.fSize_px) || (py >= rtdata.fSize_py)) return;
 
-  adept::BlockData<RayBlock *> *rays_containers = rtdata.rays;
-  RayBlock *rays                                = (*rays_containers)[generation];
-
   // For the first generation, "create" the rays
   if (generation == 0) {
     Ray_t *ray = (Ray_t *)(input_buffer + ray_index * sizeof(Ray_t));
     ray->index = ray_index;
 
-    (*rays)[ray_index] = *ray;
+    (*rays)[id] = *ray;
   }
 
-  auto pixel_color = Raytracer::RaytraceOne(rtdata, rays, px, py, ray_index);
+  auto pixel_color = Raytracer::RaytraceOne(rtdata, rays, px, py, id);
 
   int pixel_index = 4 * ray_index;
   output_buffer[pixel_index + 0] += pixel_color.fComp.red;

@@ -252,6 +252,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int in
         reflected_ray.fDir      = reflected;
         reflected_ray.intensity = kr;
         reflected_ray.fColor += object_color_reflected;
+        reflected_ray.fDone = false;
       }
 
       // Threshold
