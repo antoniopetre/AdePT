@@ -218,7 +218,6 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int in
       // ray.fColor = kr * col_reflected + (1 - kr) * col_refracted
       // ray.fDone = true;
 
-
       auto object_color_refracted = rtdata.fObjColor;
       object_color_refracted *= (1 - kr);
 
@@ -247,9 +246,11 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int in
 
       // Update the reflected ray
       if (reflected_ray.intensity > 0) {
-        reflected_ray.fDir      = reflected;
-        reflected_ray.intensity = kr;
-        reflected_ray.fColor += object_color_reflected;
+        reflected_ray.fDir       = reflected;
+        reflected_ray.intensity  = kr;
+        reflected_ray.fColor     += object_color_reflected;
+        reflected_ray.generation = ray.generation;
+        reflected_ray.fDone      = false;
       }
 
       // Threshold
@@ -260,7 +261,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int in
       }
 
       // Add in the BlockData the reflected_ray
-      rtdata.sparse_rays[ray.generation % 10]->next_free(reflected_ray);
+      rtdata.sparse_rays[reflected_ray.generation % 10]->next_free(reflected_ray);
       
     }
   }

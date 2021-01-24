@@ -163,6 +163,11 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
       renderKernel.WaitStream();
     }
   }
+
+  for (int i = 0; i < no_generations; ++i)
+  {
+    print_array(rtdata->sparse_rays[i]);
+  }
  
   auto time_cpu = timer.Stop();
   std::cout << "Run time: " << time_cpu << "\n";

@@ -18,7 +18,7 @@ __host__ __device__
 void generateRays(int id, const RaytracerData_t &rtdata, NavIndex_t *input_buffer)
 {
   // Check if the index is greater than the size of the matrix
-  if (id > rtdata.fSize_px*rtdata.fSize_py) return;
+  if (id >= rtdata.fSize_px*rtdata.fSize_py) return;
 
   Ray_t *ray = (Ray_t *)(input_buffer + id * sizeof(Ray_t));
   ray->index = id;
