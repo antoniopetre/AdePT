@@ -20,24 +20,39 @@ void generateRays(int id, adept::BlockData<Ray_t> *rays)
 
   ray->index = -1;
 }
-
 COPCORE_CALLABLE_FUNC(generateRays)
 
 __host__ __device__
-void renderKernels(int id, const RaytracerData_t &rtdata, NavIndex_t *input_buffer,
-                                       NavIndex_t *output_buffer, int generation)
+void fillRays(int id, adept::BlockData<Ray_t> *rays, NavIndex_t *input_buffer, const RaytracerData_t &rtdata)
+{
+  if (id == 1 << 20)
+    printf("AJUNGE LA CAPACITY\n");
+
+  if (id == (1 << 20) - 1) {
+    printf("DOAR LA CAPACITY-1\n");
+  }
+
+  if (id >= rtdata.fSize_py*rtdata.fSize_px) return;
+
+  Ray_t *ray = (Ray_t *)(input_buffer + id * sizeof(Ray_t));
+  ray->index = id;
+
+  (*rays)[id] = *ray;
+  
+}
+COPCORE_CALLABLE_FUNC(fillRays)
+
+__host__ __device__
+void renderKernels(int id, const RaytracerData_t &rtdata, NavIndex_t *output_buffer, int generation)
 {
   // Propagate all rays and write out the image on the backend
 
   adept::BlockData<RayBlock *> *rays_containers = rtdata.rays;
   RayBlock *rays                                = (*rays_containers)[generation];
 
-  if (generation > 0 && (*rays)[id].index == -1) return;
+  if ((*rays)[id].index == -1) return;
 
-  int ray_index = id;
-
-  if (generation > 0)
-    ray_index = (*rays)[id].index;
+  int ray_index = (*rays)[id].index;
 
   int px = 0;
   int py = 0;
@@ -48,14 +63,6 @@ void renderKernels(int id, const RaytracerData_t &rtdata, NavIndex_t *input_buff
   }
 
   if ((px >= rtdata.fSize_px) || (py >= rtdata.fSize_py)) return;
-
-  // For the first generation, "create" the rays
-  if (generation == 0) {
-    Ray_t *ray = (Ray_t *)(input_buffer + ray_index * sizeof(Ray_t));
-    ray->index = ray_index;
-
-    (*rays)[id] = *ray;
-  }
 
   auto pixel_color = Raytracer::RaytraceOne(rtdata, rays, px, py, id);
 

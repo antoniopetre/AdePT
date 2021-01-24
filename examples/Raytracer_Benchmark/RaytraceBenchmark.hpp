@@ -116,30 +116,24 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   copcore::Allocator<adept::Atomic_t<int>, backend> intAlloc;
   adept::Atomic_t<int> *indices = intAlloc.allocate(no_generations * sizeof(adept::Atomic_t<int>));
 
-  rtdata->rays    = rays;
-  rtdata->indices = indices;
-
   for (int i = 0; i < no_generations; i++) {
     RayAllocator rayAlloc(capacity);
     (*rays)[i] = rayAlloc.allocate(1);
-    rtdata->indices[i].store(0);
+    indices[i].store(0);
   }
+
+  rtdata->rays    = rays;
+  rtdata->indices = indices;
 
   // Boilerplate to get the pointers to the device functions to be used
   COPCORE_CALLABLE_DECLARE(generateFunc, generateRays);
   COPCORE_CALLABLE_DECLARE(renderkernelFunc, renderKernels);
+  COPCORE_CALLABLE_DECLARE(fillFunc, fillRays);
 
   // Create a stream to work with.
   Stream_t stream;
   StreamStruct::CreateStream(stream);
   Launcher_t generate(stream);
-
-  // Allocate slots for the BlockData
-  for (int i = 0; i < no_generations; ++i) {
-    generate.Run(generateFunc, capacity, {0, 0}, (*rays)[i]);
-  }
-
-  generate.WaitStream();
 
   // Allocate and initialize all rays on the host
   size_t raysize = Ray_t::SizeOfInstance();
@@ -156,6 +150,16 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   for (int iray = 0; iray < rtdata->fNrays; ++iray)
     Ray_t::MakeInstanceAt(input_buffer + iray * raysize);
 
+  // Allocate slots for the BlockData
+  for (int i = 0; i < no_generations; ++i) {
+    generate.Run(generateFunc, capacity, {0, 0}, (*rtdata->rays)[i]);
+  }
+
+  generate.WaitStream();
+
+  generate.Run(fillFunc, capacity, {0, 0}, (*rtdata->rays)[0], input_buffer, *rtdata);
+  generate.WaitStream();
+
   vecgeom::Stopwatch timer;
   timer.Start();
 
@@ -164,13 +168,23 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   } else {
     Launcher_t renderKernel(stream);
     for (int i = 0; i < no_generations; i++) {
-      renderKernel.Run(renderkernelFunc, (*rays)[0]->GetNused(), {0, 0}, *rtdata, input_buffer, output_buffer, i);
+      renderKernel.Run(renderkernelFunc, (*rays)[i]->GetNused(), {0, 0}, *rtdata, output_buffer, i);
       renderKernel.WaitStream();
     }
   }
 
   auto time_cpu = timer.Stop();
   std::cout << "Run time: " << time_cpu << "\n";
+
+  // for (int i = 0; i < no_generations; ++i)
+  // {
+  //   printf("index[%d] = %d\n", i, rtdata->indices[i].load());
+  // }
+
+  // for (int i = 0; i < capacity; ++i)
+  // {
+  //   printf("%d \n", (*(*rtdata->rays)[0])[i].index);
+  // }
 
   // Write the output
   write_ppm("output.ppm", output_buffer, rtdata->fSize_px, rtdata->fSize_py);
