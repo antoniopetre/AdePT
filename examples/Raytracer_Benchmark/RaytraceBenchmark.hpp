@@ -128,12 +128,19 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   // Boilerplate to get the pointers to the device functions to be used
   COPCORE_CALLABLE_DECLARE(generateFunc, generateRays);
   COPCORE_CALLABLE_DECLARE(renderkernelFunc, renderKernels);
-  COPCORE_CALLABLE_DECLARE(fillFunc, fillRays);
+  COPCORE_CALLABLE_DECLARE(initialFunc, initialRays);
 
   // Create a stream to work with.
   Stream_t stream;
   StreamStruct::CreateStream(stream);
   Launcher_t generate(stream);
+
+   // Allocate slots for the BlockData
+  for (int i = 0; i < no_generations; ++i) {
+    generate.Run(generateFunc, capacity, {0, 0}, (*rtdata->rays)[i]);
+  }
+
+  generate.WaitStream();
 
   // Allocate and initialize all rays on the host
   size_t raysize = Ray_t::SizeOfInstance();
@@ -150,14 +157,8 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   for (int iray = 0; iray < rtdata->fNrays; ++iray)
     Ray_t::MakeInstanceAt(input_buffer + iray * raysize);
 
-  // Allocate slots for the BlockData
-  for (int i = 0; i < no_generations; ++i) {
-    generate.Run(generateFunc, capacity, {0, 0}, (*rtdata->rays)[i]);
-  }
-
-  generate.WaitStream();
-
-  generate.Run(fillFunc, capacity, {0, 0}, (*rtdata->rays)[0], input_buffer, *rtdata);
+  // Add the first generation of rays
+  generate.Run(initialFunc, rtdata->fSize_py*rtdata->fSize_px, {0, 0}, (*rtdata->rays)[0], input_buffer);
   generate.WaitStream();
 
   vecgeom::Stopwatch timer;
@@ -175,16 +176,6 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
 
   auto time_cpu = timer.Stop();
   std::cout << "Run time: " << time_cpu << "\n";
-
-  // for (int i = 0; i < no_generations; ++i)
-  // {
-  //   printf("index[%d] = %d\n", i, rtdata->indices[i].load());
-  // }
-
-  // for (int i = 0; i < capacity; ++i)
-  // {
-  //   printf("%d \n", (*(*rtdata->rays)[0])[i].index);
-  // }
 
   // Write the output
   write_ppm("output.ppm", output_buffer, rtdata->fSize_px, rtdata->fSize_py);

@@ -227,32 +227,31 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int in
 
       // Update the refracted ray
       if (ray.intensity > 0) {
-        ray.fDir = refracted;
-        ray.intensity -= kr;
-        ray.fColor += object_color_refracted;
+        ray.fDir        = refracted;
+        ray.intensity  -= kr;
+        ray.fColor     += object_color_refracted;
       }
 
       // Threshold
       if (ray.intensity < 0.01) {
         ray.intensity  = 0;
         ray.fDone      = true;
-        (*rays)[index] = ray;
         return;
       }
 
       // Update the generation for the refracted ray and add it to the BlockData
       ray.generation++;
-      (*rays)[index] = ray;
 
       // Reflected ray
       Ray_t reflected_ray = ray;
 
       // Update the reflected ray
       if (reflected_ray.intensity > 0) {
-        reflected_ray.fDir      = reflected;
-        reflected_ray.intensity = kr;
-        reflected_ray.fColor += object_color_reflected;
-        reflected_ray.fDone = false;
+        reflected_ray.fDir       = reflected;
+        reflected_ray.intensity  = kr;
+        reflected_ray.fColor    += object_color_reflected;
+        reflected_ray.generation = ray.generation;
+        reflected_ray.fDone      = false;
       }
 
       // Threshold
@@ -263,17 +262,17 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int in
       }
 
       // Update the last index where the reflected_ray is added in BlockData
-      rtdata.indices[ray.generation % 10].fetch_add(1);
+      rtdata.indices[reflected_ray.generation % 10].fetch_add(1);
 
       // BlockData with rays of next generation
-      RayBlock *reflected_rays = (*rtdata.rays)[ray.generation % 10];
+      RayBlock *reflected_rays = (*rtdata.rays)[reflected_ray.generation % 10];
 
       // Find which generation needs reshuffling
       // if (rtdata.indices[ray.generation % 10].load() > 1048576)
       //   printf("reshuffle for %d generation\n", ray.generation);
 
       // Add in the BlockData the reflected_ray
-      (*reflected_rays)[rtdata.indices[ray.generation % 10].load() % 1048576] = reflected_ray;
+      (*reflected_rays)[rtdata.indices[reflected_ray.generation % 10].load() % 1048576] = reflected_ray;
     }
   }
   if (ray.fVolume == nullptr) ray.fDone = true;

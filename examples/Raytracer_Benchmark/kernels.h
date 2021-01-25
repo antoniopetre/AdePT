@@ -22,25 +22,16 @@ void generateRays(int id, adept::BlockData<Ray_t> *rays)
 }
 COPCORE_CALLABLE_FUNC(generateRays)
 
+// Initialize the first generation of rays
 __host__ __device__
-void fillRays(int id, adept::BlockData<Ray_t> *rays, NavIndex_t *input_buffer, const RaytracerData_t &rtdata)
+void initialRays(int id, adept::BlockData<Ray_t> *rays, NavIndex_t *input_buffer)
 {
-  if (id == 1 << 20)
-    printf("AJUNGE LA CAPACITY\n");
-
-  if (id == (1 << 20) - 1) {
-    printf("DOAR LA CAPACITY-1\n");
-  }
-
-  if (id >= rtdata.fSize_py*rtdata.fSize_px) return;
-
   Ray_t *ray = (Ray_t *)(input_buffer + id * sizeof(Ray_t));
   ray->index = id;
 
   (*rays)[id] = *ray;
-  
 }
-COPCORE_CALLABLE_FUNC(fillRays)
+COPCORE_CALLABLE_FUNC(initialRays)
 
 __host__ __device__
 void renderKernels(int id, const RaytracerData_t &rtdata, NavIndex_t *output_buffer, int generation)
@@ -50,8 +41,10 @@ void renderKernels(int id, const RaytracerData_t &rtdata, NavIndex_t *output_buf
   adept::BlockData<RayBlock *> *rays_containers = rtdata.rays;
   RayBlock *rays                                = (*rays_containers)[generation];
 
+  // Check if the slot is used
   if ((*rays)[id].index == -1) return;
 
+  // Get the index of the pixel
   int ray_index = (*rays)[id].index;
 
   int px = 0;
