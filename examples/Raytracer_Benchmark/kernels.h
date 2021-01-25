@@ -10,7 +10,7 @@
 
 inline namespace COPCORE_IMPL {
 
-using RayBlock = adept::BlockData<Ray_t>;
+using RayBlock       = adept::BlockData<Ray_t>;
 using Array_t        = adept::SparseArray<Ray_t, 1<<20>;
 
 // For the first generation, "create" the rays
@@ -21,7 +21,7 @@ void generateRays(int id, const RaytracerData_t &rtdata, NavIndex_t *input_buffe
   if (id >= rtdata.fSize_px*rtdata.fSize_py) return;
 
   Ray_t *ray = (Ray_t *)(input_buffer + id * sizeof(Ray_t));
-  ray->index = id;
+  ray->index      = id;
 
   // Add the ray in the ray container
   rtdata.sparse_rays[0]->next_free(*ray);
@@ -60,25 +60,26 @@ void renderKernels(int id, const RaytracerData_t &rtdata, NavIndex_t *output_buf
 }
 COPCORE_CALLABLE_FUNC(renderKernels)
 
-
-__host__ __device__ void print_rays(const RaytracerData_t &rtdata, int generation)
-{
-  int px = rtdata.fSize_px;
-  int py = rtdata.fSize_py;
-  adept::SparseArray<Ray_t, 1<<20> **rays_containers = rtdata.sparse_rays;
-  printf(" data: ");
-  for (int i = 0; i < px*py; ++i) {
-    printf(" %d", (*rays_containers)[generation][i].index);
-    if (!(*rays_containers)[generation].is_used(i)) printf("x");
-  }
-  printf("...\n");
-}
-
+// Print basic information about the container
 __host__ __device__ void print_array(Array_t *array)
 {
   printf("=== array: fNshared=%d/%d fNused=%d fNselected=%d - shared=%.1f%% sparsity=%.1f%% selected=%.1f%%\n\n",
          (int)array->size_shared(), (int)array->size_max(), (int)array->size_used(), array->size_selected(),
          100. * array->get_shared_fraction(), 100. * array->get_sparsity(), 100. * array->get_selected_fraction());
+}
+
+// Check if there are rays in containers
+__host__ __device__ bool check_used(const RaytracerData_t &rtdata, int no_generations)
+{
+  
+  adept::SparseArray<Ray_t, 1<<20> **rays_containers = rtdata.sparse_rays;
+
+  for (int i = 0; i < no_generations; ++i) {
+    if (rays_containers[i]->size_used() > 0)
+      return true;
+  }
+
+  return false;
 }
 
 } // End namespace COPCORE_IMPL

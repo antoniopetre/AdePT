@@ -97,7 +97,7 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, int px, int py, int in
   constexpr double kPush  = 1.e-8;
 
   Ray_t ray = (*rtdata.sparse_rays[generation])[index];
-  
+
   vecgeom::Vector3D<double> pos_onscreen = rtdata.fLeftC + rtdata.fScale * (px * rtdata.fRight + py * rtdata.fUp);
   vecgeom::Vector3D<double> start        = (rtdata.fView == kRTVperspective) ? rtdata.fStart : pos_onscreen;
   ray.fPos                               = start;
@@ -226,9 +226,9 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int in
 
       // Update the refracted ray
       if (ray.intensity > 0) {
-        ray.fDir = refracted;
+        ray.fDir       = refracted;
         ray.intensity -= kr;
-        ray.fColor += object_color_refracted;
+        ray.fColor    += object_color_refracted;
       }
 
       // Threshold

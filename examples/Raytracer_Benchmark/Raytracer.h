@@ -127,10 +127,10 @@ struct RaytracerData_t {
   ERTmodel fModel          = kRTxray;         ///< Selected RT model
   ERTView fView            = kRTVperspective; ///< View type
 
-  Array_t **sparse_rays    = nullptr; ///< pointer to the rays containers
+  Array_t **sparse_rays    = nullptr;         ///< pointer to the rays containers
 
-  VPlacedVolumePtr_t fWorld = nullptr; ///< World volume
-  vecgeom::NavStateIndex fVPstate;     ///< Navigation state corresponding to the viewpoint
+  VPlacedVolumePtr_t fWorld = nullptr;        ///< World volume
+  vecgeom::NavStateIndex fVPstate;            ///< Navigation state corresponding to the viewpoint
 
   __host__ __device__
   void Print();
