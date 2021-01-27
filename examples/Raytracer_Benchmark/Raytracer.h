@@ -105,7 +105,7 @@ struct RaytracerData_t {
 
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
   using RayBlock           = adept::BlockData<Ray_t>;
-  using Array_t = adept::SparseArray<Ray_t, 1<<20>;
+  using Array_t = adept::SparseArray<Ray_t *, 1<<20>;
 
   double fScale     = 0;                      ///< Scaling from pixels to world coordinates
   double fShininess = 1.;                     ///< Shininess exponent in the specular model

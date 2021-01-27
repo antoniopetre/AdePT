@@ -107,7 +107,7 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   using Launcher_t     = copcore::Launcher<backend>;
   using StreamStruct   = copcore::StreamType<backend>;
   using Stream_t       = typename StreamStruct::value_type;
-  using Array_t        = adept::SparseArray<Ray_t, 1<<20>;
+  using Array_t        = adept::SparseArray<Ray_t *, 1<<20>;
   using LaunchGrid_t = copcore::launch_grid<copcore::BackendType::CUDA>;
 
   LaunchGrid_t grid = LaunchGrid_t();
@@ -165,29 +165,33 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
     // RenderTiledImage((*rays)[0], (RaytracerData_t *)rtdata, output_buffer, block_size);
   } else {
     Launcher_t renderKernel(stream);
-    while(check_used(*rtdata, no_generations)) {
+    // while(check_used(*rtdata, no_generations)) {
       for (int i = 0; i < no_generations; i++) {
         // Propagate the rays
         renderKernel.Run(renderkernelFunc, capacity, {0, 0}, *rtdata, output_buffer, i);
-        renderKernel.WaitStream();
+        // renderKernel.WaitStream();
+        cudaDeviceSynchronize();
+        check_generation(*rtdata, i);
+        printf("-----------------------------------------\n");
+        // printf("primu hop -------------------------------------------\n");
 
         // Select the rays from container
-        rtdata->sparse_rays[i]->select([] __device__(int i, const Array_t *arr) { return ((*arr)[i].fDone == false); });
-        cudaDeviceSynchronize();
+        // rtdata->sparse_rays[i]->select([] __device__(int i, const Array_t *arr) { return ((*arr)[i]->fDone == false); });
+        // cudaDeviceSynchronize();
 
-        // Release the selected rays 
-        rtdata->sparse_rays[i]->release_selected(grid);
-        renderKernel.WaitStream();
+        // // Release the selected rays 
+        // rtdata->sparse_rays[i]->release_selected(grid);
+        // renderKernel.WaitStream();
 
-        rtdata->sparse_rays[i]->select_used();
-        renderKernel.WaitStream();
+        // rtdata->sparse_rays[i]->select_used();
+        // renderKernel.WaitStream();
       }
-    }
+    // }
   }
 
   // Print basic information about containers
-  // for (int i = 0; i < no_generations; ++i)
-  //   print_array(rtdata->sparse_rays[i]);
+  for (int i = 0; i < no_generations; ++i)
+    print_array(rtdata->sparse_rays[i]);
 
   auto time_cpu = timer.Stop();
   std::cout << "Run time: " << time_cpu << "\n";

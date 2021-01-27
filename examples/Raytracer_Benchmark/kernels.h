@@ -11,7 +11,7 @@
 inline namespace COPCORE_IMPL {
 
 using RayBlock       = adept::BlockData<Ray_t>;
-using Array_t        = adept::SparseArray<Ray_t, 1<<20>;
+using Array_t        = adept::SparseArray<Ray_t *, 1<<20>;
 
 // For the first generation, "create" the rays
 __host__ __device__
@@ -24,7 +24,7 @@ void generateRays(int id, const RaytracerData_t &rtdata, NavIndex_t *input_buffe
   ray->index      = id;
 
   // Add the ray in the ray container
-  rtdata.sparse_rays[0]->next_free(*ray);
+  rtdata.sparse_rays[0]->next_free(ray);
 }
 
 COPCORE_CALLABLE_FUNC(generateRays)
@@ -37,7 +37,7 @@ void renderKernels(int id, const RaytracerData_t &rtdata, NavIndex_t *output_buf
   // Check if the slot is used
   if (!(rtdata.sparse_rays)[generation]->is_used(id)) return;
   
-  int ray_index = (*rtdata.sparse_rays[generation])[id].index;
+  int ray_index = (*rtdata.sparse_rays[generation])[id]->index;
 
   int px = 0;
   int py = 0;
@@ -68,11 +68,27 @@ __host__ __device__ void print_array(Array_t *array)
          100. * array->get_shared_fraction(), 100. * array->get_sparsity(), 100. * array->get_selected_fraction());
 }
 
+__host__ __device__ void check_generation(const RaytracerData_t &rtdata, int no_generations)
+{
+  
+  adept::SparseArray<Ray_t *, 1<<20> **rays_containers = rtdata.sparse_rays;
+
+  // for (int i = 0; i < no_generations; ++i) {
+    for (int j = 0; j < rays_containers[no_generations]->size_used(); ++j)
+    {
+      // if ((*rays_containers[i])[j]->generation < 0 || (*rays_containers[i])[j]->generation > 10)
+        printf(" val = %d\n", (*rays_containers[no_generations])[j]->fDone);
+    }
+
+  // }
+
+}
+
 // Check if there are rays in containers
 __host__ __device__ bool check_used(const RaytracerData_t &rtdata, int no_generations)
 {
   
-  adept::SparseArray<Ray_t, 1<<20> **rays_containers = rtdata.sparse_rays;
+  adept::SparseArray<Ray_t *, 1<<20> **rays_containers = rtdata.sparse_rays;
 
   for (int i = 0; i < no_generations; ++i) {
     if (rays_containers[i]->size_used() > 0)

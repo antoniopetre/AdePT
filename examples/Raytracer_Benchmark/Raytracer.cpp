@@ -91,12 +91,13 @@ void InitializeModel(vecgeom::VPlacedVolume const *world, RaytracerData_t &rtdat
   rtdata.fNrays = rtdata.fSize_px * rtdata.fSize_py;
 }
 
+/*
 adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, int px, int py, int index, int generation)
 {
   constexpr int kMaxTries = 10;
   constexpr double kPush  = 1.e-8;
 
-  Ray_t ray = (*rtdata.sparse_rays[generation])[index];
+  Ray_t ray = (*(*rtdata.sparse_rays[generation])[index]);
 
   vecgeom::Vector3D<double> pos_onscreen = rtdata.fLeftC + rtdata.fScale * (px * rtdata.fRight + py * rtdata.fUp);
   vecgeom::Vector3D<double> start        = (rtdata.fView == kRTVperspective) ? rtdata.fStart : pos_onscreen;
@@ -147,12 +148,93 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, int px, int py, int in
     if (ray.fVolume == nullptr) ray.fDone = true;
     if (nextvol) Raytracer::ApplyRTmodel(ray, snext, rtdata, index);
 
+    printf("generation = %d si ray.gen = %d\n", (*rtdata.sparse_rays[generation])[index]->generation, ray.generation);
+
     auto tmpstate  = ray.fCrtState;
     ray.fCrtState  = ray.fNextState;
     ray.fNextState = tmpstate;
   }
   
   return ray.fColor;
+}
+*/
+adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, int px, int py, int index, int generation)
+{
+  constexpr int kMaxTries = 10;
+  constexpr double kPush  = 1.e-8;
+
+  Ray_t *ray = (*rtdata.sparse_rays[generation])[index];
+
+  // if (generation > 0)
+  //   printf("generatia este %d\n", ray->generation);
+
+  vecgeom::Vector3D<double> pos_onscreen = rtdata.fLeftC + rtdata.fScale * (px * rtdata.fRight + py * rtdata.fUp);
+  vecgeom::Vector3D<double> start        = (rtdata.fView == kRTVperspective) ? rtdata.fStart : pos_onscreen;
+  ray->fPos                               = start;
+  ray->fDir = (rtdata.fView == kRTVperspective) ? pos_onscreen - rtdata.fStart : rtdata.fDir;
+  ray->fDir.Normalize();
+  ray->fColor = 0xFFFFFFFF; // white
+  if (rtdata.fView == kRTVperspective) {
+    ray->fCrtState = rtdata.fVPstate;
+    ray->fVolume   = (Ray_t::VPlacedVolumePtr_t)rtdata.fVPstate.Top();
+  } else {
+    ray->fVolume = LoopNavigator::LocatePointIn(rtdata.fWorld, ray->fPos, ray->fCrtState, true);
+  }
+  int itry = 0;
+  while (!ray->fVolume && itry < kMaxTries) {
+    auto snext = rtdata.fWorld->DistanceToIn(ray->fPos, ray->fDir);
+    ray->fDone  = snext == vecgeom::kInfLength;
+    if (ray->fDone) return ray->fColor;
+    // Propagate to the world volume (but do not increment the boundary count)
+    ray->fPos += (snext + kPush) * ray->fDir;
+    ray->fVolume = LoopNavigator::LocatePointIn(rtdata.fWorld, ray->fPos, ray->fCrtState, true);
+  }
+  ray->fDone = ray->fVolume == nullptr;
+  if (ray->fDone) return ray->fColor;
+
+  // Now propagate ray
+  while (!ray->fDone) {
+    auto nextvol = ray->fVolume;
+    double snext = vecgeom::kInfLength;
+    int nsmall   = 0;
+
+    while (nextvol == ray->fVolume && nsmall < kMaxTries) {
+      snext   = LoopNavigator::ComputeStepAndPropagatedState(ray->fPos, ray->fDir, vecgeom::kInfLength, ray->fCrtState,
+                                                           ray->fNextState);
+      nextvol = (Ray_t::VPlacedVolumePtr_t)ray->fNextState.Top();
+      ray->fPos += (snext + kPush) * ray->fDir;
+      nsmall++;
+    }
+    if (nsmall == kMaxTries) {
+      // std::cout << "error for ray (" << px << ", " << py << ")\n";
+      ray->fDone  = true;
+      ray->fColor = 0;
+      return ray->fColor;
+    }
+    // Apply the selected RT model
+    ray->fNcrossed++;
+    ray->fVolume = nextvol;
+    if (ray->fVolume == nullptr) ray->fDone = true;
+
+    int prev = ray->generation;
+
+    if (nextvol) Raytracer::ApplyRTmodel(*ray, snext, rtdata, index);
+
+    if ((*rtdata.sparse_rays[generation])[index]->generation != ray->generation)
+      printf("generation = %d si ray->gen = %d\n", (*rtdata.sparse_rays[generation])[index]->generation, ray->generation);
+
+    // if (generation > 0) {
+    //   printf("ray.generation = %d\n", ray->generation);
+    // }
+
+    // printf("prev = %d si ray->gen = %d\n", prev, ray->generation);
+
+    auto tmpstate  = ray->fCrtState;
+    ray->fCrtState  = ray->fNextState;
+    ray->fNextState = tmpstate;
+  }
+  
+  return ray->fColor;
 }
 
 
@@ -232,7 +314,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int in
       }
 
       // Threshold
-      if (ray.intensity < 0.01) {
+      if (ray.intensity < 0.000001) {
         ray.intensity  = 0;
         ray.fDone      = true;
         return;
@@ -242,26 +324,34 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, int in
       ray.generation++;
       
       // Reflected ray
-      Ray_t reflected_ray = ray;
+      
+      Ray_t *reflected_ray = &ray;
+
+      // if (ray.generation > 0)
+      //   printf("generatia es\n");
 
       // Update the reflected ray
-      if (reflected_ray.intensity > 0) {
-        reflected_ray.fDir       = reflected;
-        reflected_ray.intensity  = kr;
-        reflected_ray.fColor     += object_color_reflected;
-        reflected_ray.generation = ray.generation;
-        reflected_ray.fDone      = false;
+      if (reflected_ray->intensity > 0) {
+        reflected_ray->fDir       = reflected;
+        reflected_ray->intensity  = kr;
+        reflected_ray->fColor     += object_color_reflected;
+        // reflected_ray->generation = ray.generation;
+        // reflected_ray->fDone      = false;
       }
 
+      // printf("generation = %d\n", reflected_ray->generation);
+
       // Threshold
-      if (reflected_ray.intensity < 0.01) {
-        reflected_ray.intensity = 0;
-        reflected_ray.fDone     = true;
+      if (reflected_ray->intensity < 0.000001) {
+        reflected_ray->intensity = 0;
+        reflected_ray->fDone     = true;
         return;
       }
 
       // Add in the BlockData the reflected_ray
-      rtdata.sparse_rays[reflected_ray.generation % 10]->next_free(reflected_ray);
+      rtdata.sparse_rays[reflected_ray->generation % 10]->next_free(reflected_ray);
+
+      // printf("gen = %d si reflect.gen = \n", reflected_ray->generation);
       
     }
   }
