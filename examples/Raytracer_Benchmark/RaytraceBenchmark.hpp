@@ -164,6 +164,12 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   vecgeom::Stopwatch timer;
   timer.Start();
 
+  unsigned *sel_vector_d;
+  COPCORE_CUDA_CHECK(cudaMalloc(&sel_vector_d, capacity * sizeof(unsigned)));
+
+  unsigned *nselected_hd;
+  COPCORE_CUDA_CHECK(cudaMallocManaged(&nselected_hd, sizeof(unsigned)));
+
   if (backend == copcore::BackendType::CUDA && use_tiles) {
     // RenderTiledImage(rays, (RaytracerData_t *)rtdata, output_buffer, block_size);
   } else {
@@ -172,6 +178,15 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
     {
       renderKernel.Run(renderkernelFunc, rays->GetNused(), {0, 0}, *rtdata, input_buffer, output_buffer, i);
       renderKernel.WaitStream();
+
+      COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+      auto select_func = [] __device__(int j, const VectorInterface *arr) { return ((*arr)[j].fDone == true); };
+
+      COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+      VectorInterface::select(rtdata->sparse_rays[i], select_func, sel_vector_d, nselected_hd);
+
+      print_vector(rtdata->sparse_rays[i]);
+
     }
     
   }

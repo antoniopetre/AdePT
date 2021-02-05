@@ -174,7 +174,6 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
       auto object_color = rtdata.fObjColor;
       object_color.MultiplyLightChannel(1. + 0.5 * calf);
       ray.fColor = specular_color + object_color;
-      // ray.fDir = refl;
       ray.fDone  = true;
 
 
