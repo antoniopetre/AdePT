@@ -89,12 +89,10 @@ void InitializeModel(vecgeom::VPlacedVolume const *world, RaytracerData_t &rtdat
   rtdata.fNrays = rtdata.fSize_px * rtdata.fSize_py;
 }
 
-adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t> *rays, int px, int py, int index)
+adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py, int index, int generation)
 {
   constexpr int kMaxTries = 10;
   constexpr double kPush  = 1.e-8;
-
-  Ray_t ray = (*rays)[index];
 
   vecgeom::Vector3D<double> pos_onscreen = rtdata.fLeftC + rtdata.fScale * (px * rtdata.fRight + py * rtdata.fUp);
   vecgeom::Vector3D<double> start        = (rtdata.fView == kRTVperspective) ? rtdata.fStart : pos_onscreen;
@@ -147,8 +145,9 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t
     auto tmpstate  = ray.fCrtState;
     ray.fCrtState  = ray.fNextState;
     ray.fNextState = tmpstate;
-  }
 
+  }
+  
   return ray.fColor;
 }
 
@@ -175,7 +174,10 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
       auto object_color = rtdata.fObjColor;
       object_color.MultiplyLightChannel(1. + 0.5 * calf);
       ray.fColor = specular_color + object_color;
+      // ray.fDir = refl;
       ray.fDone  = true;
+
+
       // std::cout << "calf = " << calf << "red=" << (int)ray.fColor.fComp.red << " green=" <<
       // (int)ray.fColor.fComp.green
       //          << " blue=" << (int)ray.fColor.fComp.blue << " alpha=" << (int)ray.fColor.fComp.alpha << std::endl;
@@ -208,9 +210,55 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
         // col_refracted = cast_ray(refracted);
       }
       reflected = ray.Reflect(norm);
+      // reflected.Normalize();
+      double calf = rtdata.fSourceDir.Dot(refracted);
+
       // col_reflected = cast_ray(reflected);
       // ray.fColor = kr * col_reflected + (1 - kr) * col_refracted
       // ray.fDone = true;
+
+      auto specular_color = rtdata.fBkgColor;
+      specular_color.MultiplyLightChannel(1. + 0.5 * calf);
+      // specular_color.MultiplyLightChannel(1. - kr);
+      auto object_color = rtdata.fObjColor;
+      // object_color.MultiplyLightChannel(1. - kr);
+      object_color.MultiplyLightChannel(1. + 0.5*calf);
+
+
+
+      ray.fColor = specular_color + object_color;
+
+      ray.fDir = refracted;
+      ray.intensity -= kr;
+
+      if (ray.intensity < 0.0000001) {
+        ray.intensity  = 0;
+        ray.fDone      = true;
+        return;
+      }
+
+      // Update the generation for the refracted ray and add it to the BlockData
+      ray.generation++;
+      
+      // // Reflected ray
+      Ray_t *reflected_ray = rtdata.sparse_rays[ray.generation % 10]->next_free(ray);
+
+      calf = -rtdata.fSourceDir.Dot(reflected);
+      auto specular_color2 = rtdata.fBkgColor;
+      specular_color2.MultiplyLightChannel(1. + 0.5 * calf);
+      auto object_color2 = rtdata.fObjColor;
+      // object_color2.MultiplyLightChannel(kr);
+      object_color2.MultiplyLightChannel(1. + 0.5*calf);
+
+      // // Update the reflected ray
+      // if (reflected_ray->intensity > 0) {
+        reflected_ray->fDir       = reflected;
+        reflected_ray->intensity  = kr;
+        reflected_ray->fColor     = specular_color2 + object_color2;
+        reflected_ray->generation = ray.generation;
+        reflected_ray->fDone      = false;
+      // }
+
     }
   }
   if (ray.fVolume == nullptr) ray.fDone = true;
@@ -242,13 +290,13 @@ void PropagateRays(int id, adept::BlockData<Ray_t> *rays, const RaytracerData_t 
 
   (*rays)[ray_index] = *ray;
 
-  auto pixel_color = RaytraceOne(rtdata, rays, px, py, ray->index);
+  // auto pixel_color = RaytraceOne(rtdata, rays, px, py, ray->index);
 
-  int pixel_index                = 4 * ray_index;
-  output_buffer[pixel_index + 0] = pixel_color.fComp.red;
-  output_buffer[pixel_index + 1] = pixel_color.fComp.green;
-  output_buffer[pixel_index + 2] = pixel_color.fComp.blue;
-  output_buffer[pixel_index + 3] = 255;
+  // int pixel_index                = 4 * ray_index;
+  // output_buffer[pixel_index + 0] = pixel_color.fComp.red;
+  // output_buffer[pixel_index + 1] = pixel_color.fComp.green;
+  // output_buffer[pixel_index + 2] = pixel_color.fComp.blue;
+  // output_buffer[pixel_index + 3] = 255;
 }
 
 /*

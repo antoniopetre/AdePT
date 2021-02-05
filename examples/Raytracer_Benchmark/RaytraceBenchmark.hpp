@@ -8,6 +8,7 @@
 #include <AdePT/ArgParser.h>
 #include <AdePT/BlockData.h>
 #include <AdePT/LoopNavigator.h>
+#include <AdePT/SparseVector.h>
 
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/management/GeoManager.h>
@@ -94,14 +95,40 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
 
   rtdata->Print();
 
+  constexpr int VectorSize = 1 << 20;
+
   using RayBlock     = adept::BlockData<Ray_t>;
   using RayAllocator = copcore::VariableSizeObjAllocator<RayBlock, backend>;
   using Launcher_t   = copcore::Launcher<backend>;
   using StreamStruct = copcore::StreamType<backend>;
   using Stream_t     = typename StreamStruct::value_type;
 
+  using Vector_t = adept::SparseVector<Ray_t, VectorSize>; // 1<<16 is the default vector size if parameter omitted
+  using VectorInterface = adept::SparseVectorInterface<Ray_t>;
+
   // initialize BlockData of Ray_t structure
   int capacity = 1 << 20;
+  int ntracks = rtdata->fSize_px*rtdata->fSize_py;
+
+  int no_generations = 1;
+
+  if (rtdata->fModel == kRTfresnel || rtdata->fModel == kRTspecular) no_generations = 10;
+
+  // Allocate the rays container
+  Vector_t **array_ptr;
+  COPCORE_CUDA_CHECK(cudaMallocManaged(&array_ptr, sizeof(Vector_t *)));
+  Vector_t::MakeInstanceAt(array_ptr);
+
+  for (int i = 0; i < no_generations; ++i)
+  {
+    cudaMallocManaged(&(array_ptr[i]), sizeof(Vector_t));
+    Vector_t::MakeInstanceAt(array_ptr[i]);
+  }
+
+  rtdata->sparse_rays = array_ptr;
+
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+
   RayAllocator hitAlloc(capacity);
   RayBlock *rays = hitAlloc.allocate(1);
 
@@ -138,12 +165,20 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   timer.Start();
 
   if (backend == copcore::BackendType::CUDA && use_tiles) {
-    RenderTiledImage(rays, (RaytracerData_t *)rtdata, output_buffer, block_size);
+    // RenderTiledImage(rays, (RaytracerData_t *)rtdata, output_buffer, block_size);
   } else {
     Launcher_t renderKernel(stream);
-    renderKernel.Run(renderkernelFunc, rays->GetNused(), {0, 0}, rays, *rtdata, input_buffer, output_buffer);
-    renderKernel.WaitStream();
+    for (int i = 0; i < no_generations; ++i)
+    {
+      renderKernel.Run(renderkernelFunc, rays->GetNused(), {0, 0}, *rtdata, input_buffer, output_buffer, i);
+      renderKernel.WaitStream();
+    }
+    
   }
+
+    // Print basic information about containers
+  for (int i = 0; i < no_generations; ++i)
+    print_vector(rtdata->sparse_rays[i]);
 
   auto time_cpu = timer.Stop();
   std::cout << "Run time: " << time_cpu << "\n";
