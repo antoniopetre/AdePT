@@ -26,6 +26,7 @@
 __global__ void RenderTile(adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata, int offset_x, int offset_y,
                            int tile_size_x, int tile_size_y, unsigned char *tile_in, unsigned char *tile_out)
 {
+  /*
   int local_px = threadIdx.x + blockIdx.x * blockDim.x;
   int local_py = threadIdx.y + blockIdx.y * blockDim.y;
 
@@ -41,12 +42,13 @@ __global__ void RenderTile(adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata
   ray->index = ray_index;
 
   (*rays)[ray_index]         = *ray;
-  // adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, rays, global_px, global_py, ray->index);
+  adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, rays, global_px, global_py, ray->index);
 
-  // tile_out[pixel_index + 0] = pixel_color.fComp.red;
-  // tile_out[pixel_index + 1] = pixel_color.fComp.green;
-  // tile_out[pixel_index + 2] = pixel_color.fComp.blue;
-  // tile_out[pixel_index + 3] = 255;
+  tile_out[pixel_index + 0] = pixel_color.fComp.red;
+  tile_out[pixel_index + 1] = pixel_color.fComp.green;
+  tile_out[pixel_index + 2] = pixel_color.fComp.blue;
+  tile_out[pixel_index + 3] = 255;
+  */
 }
 
 // subdivide image in 16 tiles and launch each tile on a separate CUDA stream
@@ -157,6 +159,7 @@ void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata) {
 
 int executePipelineGPU(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[])
 {
+
   int result;
   result = runSimulation<copcore::BackendType::CUDA>(world, argc, argv);
   return result;

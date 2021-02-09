@@ -26,6 +26,13 @@ inline namespace COPCORE_IMPL {
 
 enum ERTmodel { kRTxray = 0, kRTspecular, kRTtransparent, kRTfresnel };
 enum ERTView { kRTVparallel = 0, kRTVperspective };
+enum ERTmaterial { kRTair = 0, kRTglass, kRTaluminium };
+
+struct Material_container {
+
+    ERTmaterial material;
+    adept::Color_t fObjColor;
+};
 
 struct Ray_t {
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
@@ -39,8 +46,9 @@ struct Ray_t {
   adept::Color_t fColor      = 0;       ///< pixel color
   bool fDone                 = false;   ///< done flag
   int index                  = -1;      ///< index flag
-  float intensity            = 1.;
-  int generation             = -1;
+  float intensity            = 1.;      ///< intensity flag (used for kRTfresnel model)
+  int generation             = -1;      ///< generation flag (used for kRTfresnel model)
+  bool direction             = true;    ///< direction flag (used for kRTfrsnel model)
 
   __host__ __device__
   static Ray_t *MakeInstanceAt(void *addr) { return new (addr) Ray_t(); }
@@ -150,7 +158,7 @@ __host__ __device__
 void InitializeModel(VPlacedVolumePtr_t world, RaytracerData_t &data);
 
 __host__ __device__
-void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata);
+void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, bool transparent);
 
 /// \brief Entry point to propagate all rays
 __host__ __device__

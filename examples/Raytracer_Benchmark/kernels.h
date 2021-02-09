@@ -29,29 +29,17 @@ void renderKernels(int id, const RaytracerData_t &rtdata, NavIndex_t *input_buff
   // Propagate all rays and write out the image on the backend
   // size_t n10  = 0.1 * rtdata.fNrays;
   int ray_index;
+  int px = 0, py = 0;
 
-  if (generation > 0 || id >= rtdata.fSize_px*rtdata.fSize_py) {
-    if (!(rtdata.sparse_rays)[generation]->is_used(id)) return;
-    ray_index = (*rtdata.sparse_rays[generation])[id].index;
-  }
-  else {
+  if (generation == 0 && id < rtdata.fSize_px*rtdata.fSize_py) {
+    // Create the rays
     ray_index = id;
-  }
 
-  int px = 0;
-  int py = 0;
-
-  if (ray_index) {
-    px = ray_index % rtdata.fSize_px;
-    py = ray_index / rtdata.fSize_px;
-  }
-  
-  if ((px >= rtdata.fSize_px) || (py >= rtdata.fSize_py)) return;
-
-  Ray_t *ray;
-
-  if (generation == 0) {
-    ray = (Ray_t *)(input_buffer + id * sizeof(Ray_t));
+    if (ray_index) {
+      px = ray_index % rtdata.fSize_px;
+      py = ray_index / rtdata.fSize_px;
+    }
+    Ray_t *ray = (Ray_t *)(input_buffer + id * sizeof(Ray_t));
     ray->index      = id;
     ray->generation = 0;
 
@@ -64,16 +52,22 @@ void renderKernels(int id, const RaytracerData_t &rtdata, NavIndex_t *input_buff
     output_buffer[pixel_index + 1] += pixel_color.fComp.green;
     output_buffer[pixel_index + 2] += pixel_color.fComp.blue;
     output_buffer[pixel_index + 3] = 255;
-
-    // if(ray->fDone == true)
-    //   printf("NU\n");
-    
   }
+
   else {
+    // Propagate the secondary rays
+    if (!(rtdata.sparse_rays)[generation]->is_used(id)) return;
 
-    Ray_t ray2 = (*rtdata.sparse_rays[generation])[id];
+    ray_index = (*rtdata.sparse_rays[generation])[id].index;
+    
+    if (ray_index) {
+      px = ray_index % rtdata.fSize_px;
+      py = ray_index / rtdata.fSize_px;
+    }
 
-    auto pixel_color = Raytracer::RaytraceOne(rtdata, ray2, px, py, id, generation);
+    Ray_t ray = (*rtdata.sparse_rays[generation])[id];
+
+    auto pixel_color = Raytracer::RaytraceOne(rtdata, ray, px, py, id, generation);
 
     int pixel_index = 4 * ray_index;
     output_buffer[pixel_index + 0] += pixel_color.fComp.red;
@@ -81,8 +75,7 @@ void renderKernels(int id, const RaytracerData_t &rtdata, NavIndex_t *input_buff
     output_buffer[pixel_index + 2] += pixel_color.fComp.blue;
     output_buffer[pixel_index + 3] = 255;
 
-    // if(ray2.fDone == true)
-    //   printf("NU\n");
+
   }
   
 }
