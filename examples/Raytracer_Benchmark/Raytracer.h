@@ -12,6 +12,7 @@
 
 #include <CopCore/Global.h>
 #include <AdePT/BlockData.h>
+#include <AdePT/SparseVector.h>
 
 #include <VecGeom/base/Global.h>
 #include <VecGeom/base/Vector3D.h>
@@ -25,6 +26,13 @@ inline namespace COPCORE_IMPL {
 
 enum ERTmodel { kRTxray = 0, kRTspecular, kRTtransparent, kRTfresnel };
 enum ERTView { kRTVparallel = 0, kRTVperspective };
+enum ERTmaterial { kRTair = 0, kRTglass, kRTaluminium };
+
+struct Material_container {
+
+    ERTmaterial material;
+    adept::Color_t fObjColor;
+};
 
 struct Ray_t {
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
@@ -38,6 +46,9 @@ struct Ray_t {
   adept::Color_t fColor      = 0;       ///< pixel color
   bool fDone                 = false;   ///< done flag
   int index                  = -1;      ///< index flag
+  float intensity            = 1.;      ///< intensity flag (used for kRTfresnel model)
+  int generation             = -1;      ///< generation flag (used for kRTfresnel model)
+  bool direction             = true;    ///< direction flag (used for kRTfrsnel model)
 
   __host__ __device__
   static Ray_t *MakeInstanceAt(void *addr) { return new (addr) Ray_t(); }
@@ -99,6 +110,7 @@ struct Ray_t {
 struct RaytracerData_t {
 
   using VPlacedVolumePtr_t = vecgeom::VPlacedVolume const *;
+  using Array_t = adept::SparseVector<Ray_t, 1<<20>; 
 
   double fScale     = 0;                      ///< Scaling from pixels to world coordinates
   double fShininess = 1.;                     ///< Shininess exponent in the specular model
@@ -123,6 +135,8 @@ struct RaytracerData_t {
   VPlacedVolumePtr_t fWorld = nullptr; ///< World volume
   vecgeom::NavStateIndex fVPstate;     ///< Navigation state corresponding to the viewpoint
 
+  Array_t **sparse_rays    = nullptr;         ///< pointer to the rays containers
+
   __host__ __device__
   void Print();
 };
@@ -144,7 +158,7 @@ __host__ __device__
 void InitializeModel(VPlacedVolumePtr_t world, RaytracerData_t &data);
 
 __host__ __device__
-void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata);
+void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, bool transparent);
 
 /// \brief Entry point to propagate all rays
 __host__ __device__
@@ -152,7 +166,7 @@ void PropagateRays(adept::BlockData<Ray_t> *rays, RaytracerData_t &data, unsigne
                    unsigned char *output_buffer);
 
 __host__ __device__
-adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t> *rays, int px, int py, int index);
+adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py, int index, int generation);
 
 } // End namespace Raytracer
 

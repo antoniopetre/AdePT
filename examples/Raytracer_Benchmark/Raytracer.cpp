@@ -48,7 +48,7 @@ void InitializeModel(vecgeom::VPlacedVolume const *world, RaytracerData_t &rtdat
   using namespace vecCore::math;
 
   if (!world) return;
-  rtdata.fWorld = (vecgeom::VPlacedVolume const *)world;
+    rtdata.fWorld = (vecgeom::VPlacedVolume const *)world;
 
   // adjust up vector, image scaling
   vecgeom::Vector3D<double> aMin, aMax, vcenter, vsize;
@@ -89,12 +89,10 @@ void InitializeModel(vecgeom::VPlacedVolume const *world, RaytracerData_t &rtdat
   rtdata.fNrays = rtdata.fSize_px * rtdata.fSize_py;
 }
 
-adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t> *rays, int px, int py, int index)
+adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py, int index, int generation)
 {
   constexpr int kMaxTries = 10;
   constexpr double kPush  = 1.e-8;
-
-  Ray_t ray = (*rays)[index];
 
   vecgeom::Vector3D<double> pos_onscreen = rtdata.fLeftC + rtdata.fScale * (px * rtdata.fRight + py * rtdata.fUp);
   vecgeom::Vector3D<double> start        = (rtdata.fView == kRTVperspective) ? rtdata.fStart : pos_onscreen;
@@ -109,6 +107,7 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t
     ray.fVolume = LoopNavigator::LocatePointIn(rtdata.fWorld, ray.fPos, ray.fCrtState, true);
   }
   int itry = 0;
+
   while (!ray.fVolume && itry < kMaxTries) {
     auto snext = rtdata.fWorld->DistanceToIn(ray.fPos, ray.fDir);
     ray.fDone  = snext == vecgeom::kInfLength;
@@ -116,9 +115,10 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t
     // Propagate to the world volume (but do not increment the boundary count)
     ray.fPos += (snext + kPush) * ray.fDir;
     ray.fVolume = LoopNavigator::LocatePointIn(rtdata.fWorld, ray.fPos, ray.fCrtState, true);
+
     if (ray.fVolume) {
       ray.fNextState = ray.fCrtState;
-      Raytracer::ApplyRTmodel(ray, snext, rtdata);
+      Raytracer::ApplyRTmodel(ray, snext, rtdata, true);
     }
   }
   ray.fDone = ray.fVolume == nullptr;
@@ -137,29 +137,42 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t
       ray.fPos += (snext + kPush) * ray.fDir;
       nsmall++;
     }
+
     if (nsmall == kMaxTries) {
       // std::cout << "error for ray (" << px << ", " << py << ")\n";
       ray.fDone  = true;
       ray.fColor = 0;
       return ray.fColor;
     }
+
     // Apply the selected RT model
     ray.fNcrossed++;
     ray.fVolume = nextvol;
+
     if (ray.fVolume == nullptr) ray.fDone = true;
-    if (nextvol) Raytracer::ApplyRTmodel(ray, snext, rtdata);
+
+    if (!ray.fDone) {
+      if (ray.fVolume->id() == 1) {
+        if (nextvol) Raytracer::ApplyRTmodel(ray, snext, rtdata, false);
+      }
+      else
+        if (nextvol) Raytracer::ApplyRTmodel(ray, snext, rtdata, true);
+    }
+    
     auto tmpstate  = ray.fCrtState;
     ray.fCrtState  = ray.fNextState;
     ray.fNextState = tmpstate;
-  }
 
+  }
+  
   return ray.fColor;
 }
 
-void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
+void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, bool transparent)
 {
   int depth = ray.fNextState.GetLevel();
-  if (rtdata.fModel == kRTspecular) { // specular reflection
+
+  if (rtdata.fModel == kRTspecular || !transparent) { // specular reflection
     // Calculate normal at the hit point
     bool valid = ray.fVolume != nullptr && depth >= rtdata.fVisDepth;
     if (valid) {
@@ -180,6 +193,8 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
       object_color.MultiplyLightChannel(1. + 0.5 * calf);
       ray.fColor = specular_color + object_color;
       ray.fDone  = true;
+
+
       // std::cout << "calf = " << calf << "red=" << (int)ray.fColor.fComp.red << " green=" <<
       // (int)ray.fColor.fComp.green
       //          << " blue=" << (int)ray.fColor.fComp.blue << " alpha=" << (int)ray.fColor.fComp.alpha << std::endl;
@@ -189,8 +204,8 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
     if (valid) {
       float transparency = 0.85;
       auto object_color  = rtdata.fObjColor;
-      object_color *= (1 - transparency);
-      ray.fColor += object_color;
+      object_color      *= (1 - transparency);
+      ray.fColor        += object_color;
     }
   } else if (rtdata.fModel == kRTfresnel) {
     bool valid = ray.fVolume != nullptr && depth >= rtdata.fVisDepth;
@@ -209,12 +224,86 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
       if (kr < 1) {
         bool totalreflect = false;
         refracted         = ray.Refract(norm, 1.5, 1, totalreflect);
+        refracted.Normalize();
         // col_refracted = cast_ray(refracted);
       }
       reflected = ray.Reflect(norm);
+      reflected.Normalize();
       // col_reflected = cast_ray(reflected);
       // ray.fColor = kr * col_reflected + (1 - kr) * col_refracted
       // ray.fDone = true;
+
+
+      double calf = rtdata.fSourceDir.Dot(refracted);
+
+      if (!ray.direction)   // Check the direction of the ray
+        calf = -1*calf;
+
+      ray.intensity -= kr;  // Update the intensity of the ray
+
+      // Compute the color of the ray 
+      if (ray.direction) {
+        float transparency = 0.85;
+        auto object_color  = rtdata.fObjColor;
+        object_color      *= (1 - transparency);
+        // object_color *= ray.intensity;
+        // object_color *= (1. - ray.intensity);
+        ray.fColor += object_color;
+      }
+      else {
+        auto specular_color = rtdata.fBkgColor;
+        specular_color.MultiplyLightChannel(1. + 0.5 * calf);
+        auto object_color = rtdata.fObjColor;
+        object_color.MultiplyLightChannel(1. + 0.5 * calf);
+        ray.fColor  = specular_color + object_color;
+        ray.fColor *= (1 - ray.intensity);
+        ray.fDone   = true;
+      }
+
+      ray.fDir = refracted;
+      
+      if (ray.intensity < 0.0000001) {
+        ray.intensity  = 0;
+        ray.fDone      = true;
+        return;
+      }
+
+      // Update the generation for the refracted ray and add it to the BlockData
+      ray.generation++;
+      
+      // Reflected ray
+      Ray_t *reflected_ray = rtdata.sparse_rays[ray.generation % 10]->next_free(ray);
+      reflected_ray->direction   = !ray.direction;
+
+      calf = -rtdata.fSourceDir.Dot(reflected);
+
+      if (reflected_ray->direction)
+        calf = -1*calf;
+
+      // Update the reflected ray
+      reflected_ray->fDir       = reflected;
+      reflected_ray->intensity  = kr;
+      reflected_ray->generation = ray.generation;
+      reflected_ray->fDone      = false;
+
+      // TODO: Update the reflected ray color
+      /*
+      if (!reflected_ray->direction) {
+        float transparency     = 0.85;
+        auto object_color      = rtdata.fObjColor;
+        object_color          *= (1 - transparency);
+        reflected_ray->fColor += object_color;
+      }
+      else {
+        auto specular_color = rtdata.fBkgColor;
+        specular_color.MultiplyLightChannel(1. + 0.5 * calf);
+        auto object_color = rtdata.fObjColor;
+        object_color.MultiplyLightChannel(1. + 0.5 * calf);
+        reflected_ray->fColor = specular_color + object_color;
+      }
+      */
+      
+
     }
   }
   if (ray.fVolume == nullptr) ray.fDone = true;
@@ -246,13 +335,13 @@ void PropagateRays(int id, adept::BlockData<Ray_t> *rays, const RaytracerData_t 
 
   (*rays)[ray_index] = *ray;
 
-  auto pixel_color = RaytraceOne(rtdata, rays, px, py, ray->index);
+  // auto pixel_color = RaytraceOne(rtdata, rays, px, py, ray->index);
 
-  int pixel_index                = 4 * ray_index;
-  output_buffer[pixel_index + 0] = pixel_color.fComp.red;
-  output_buffer[pixel_index + 1] = pixel_color.fComp.green;
-  output_buffer[pixel_index + 2] = pixel_color.fComp.blue;
-  output_buffer[pixel_index + 3] = 255;
+  // int pixel_index                = 4 * ray_index;
+  // output_buffer[pixel_index + 0] = pixel_color.fComp.red;
+  // output_buffer[pixel_index + 1] = pixel_color.fComp.green;
+  // output_buffer[pixel_index + 2] = pixel_color.fComp.blue;
+  // output_buffer[pixel_index + 3] = 255;
 }
 
 /*

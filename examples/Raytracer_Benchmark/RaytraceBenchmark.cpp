@@ -10,6 +10,7 @@
 
 #include "Raytracer.h"
 #include "RaytraceBenchmark.hpp"
+#include <vector>
 
 #include <CopCore/Global.h>
 #include <AdePT/BlockData.h>
@@ -28,9 +29,11 @@ int executePipelineGPU(const vecgeom::cxx::VPlacedVolume *world, int argc, char 
 
 int executePipelineCPU(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[])
 {
+
   int result = runSimulation<copcore::BackendType::CPU>(world, argc, argv);
   return result;
 }
+
 
 int main(int argc, char *argv[])
 {
@@ -58,6 +61,40 @@ int main(int argc, char *argv[])
   if (!world) return 3;
 
   auto ierr = 0;
+  const int maxno_volumes = 10;
+
+  // Allocate material structure
+  static Material_container *volume_container = (Material_container *)malloc(maxno_volumes*sizeof(Material_container));
+  std::vector<vecgeom::LogicalVolume *> logicalvolumes;
+  vecgeom::GeoManager::Instance().GetAllLogicalVolumes(logicalvolumes);
+
+  int i = 0;
+
+  // Fill material structure
+  for (auto lvol : logicalvolumes) {
+      lvol->Print();
+      if (!strcmp(lvol->GetName(), "World")) {
+        volume_container[i].material = kRTair;
+        volume_container[i].fObjColor = 0x0000FF80; 
+      }
+
+      else if (!strcmp(lvol->GetName(), "SphVol")) {
+        volume_container[i].material = kRTglass;
+        volume_container[i].fObjColor = 0x0000FF80; 
+      }
+      
+      else if (!strcmp(lvol->GetName(), "BoxVol"))  {
+        volume_container[i].material = kRTaluminium;
+        volume_container[i].fObjColor = 0x0000FF80; 
+      }
+      
+      lvol->SetMaterialCutsPtr(&volume_container[i]);
+      i++;
+  }
+
+  static __device__ Material_container *vol2;
+  cudaMalloc(&vol2, sizeof(volume_container));
+  cudaMemcpy(vol2, volume_container, sizeof(volume_container), cudaMemcpyHostToDevice);
 
   if (on_gpu) {
     ierr = executePipelineGPU(world, argc, argv);
