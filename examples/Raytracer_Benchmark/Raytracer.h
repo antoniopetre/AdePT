@@ -29,7 +29,7 @@ enum ERTView { kRTVparallel = 0, kRTVperspective };
 enum ERTmaterial { kRTair = 0, kRTglass, kRTaluminium };
 
 struct Material_container {
-
+    int id;
     ERTmaterial material;
     adept::Color_t fObjColor;
 };
@@ -48,7 +48,6 @@ struct Ray_t {
   int index                  = -1;      ///< index flag
   float intensity            = 1.;      ///< intensity flag (used for kRTfresnel model)
   int generation             = -1;      ///< generation flag (used for kRTfresnel model)
-  bool direction             = true;    ///< direction flag (used for kRTfrsnel model)
 
   __host__ __device__
   static Ray_t *MakeInstanceAt(void *addr) { return new (addr) Ray_t(); }
@@ -131,6 +130,7 @@ struct RaytracerData_t {
   adept::Color_t fObjColor = 0x0000FFFF;      ///< Object color
   ERTmodel fModel          = kRTxray;         ///< Selected RT model
   ERTView fView            = kRTVperspective; ///< View type
+  bool fReflection         = false;           ///< Reflection model
 
   VPlacedVolumePtr_t fWorld = nullptr; ///< World volume
   vecgeom::NavStateIndex fVPstate;     ///< Navigation state corresponding to the viewpoint
@@ -158,7 +158,7 @@ __host__ __device__
 void InitializeModel(VPlacedVolumePtr_t world, RaytracerData_t &data);
 
 __host__ __device__
-void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, bool transparent);
+void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, Material_container **volume_container);
 
 /// \brief Entry point to propagate all rays
 __host__ __device__
@@ -166,7 +166,7 @@ void PropagateRays(adept::BlockData<Ray_t> *rays, RaytracerData_t &data, unsigne
                    unsigned char *output_buffer);
 
 __host__ __device__
-adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py, int index, int generation);
+adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py, int index, int generation, Material_container **volume_container);
 
 } // End namespace Raytracer
 

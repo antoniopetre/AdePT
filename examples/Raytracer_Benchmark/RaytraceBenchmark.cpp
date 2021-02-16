@@ -27,7 +27,7 @@
 
 int executePipelineGPU(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[]);
 
-int executePipelineCPU(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[])
+int executePipelineCPU(const Material_container *volume, const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[])
 {
 
   int result = runSimulation<copcore::BackendType::CPU>(world, argc, argv);
@@ -64,42 +64,55 @@ int main(int argc, char *argv[])
   const int maxno_volumes = 10;
 
   // Allocate material structure
-  static Material_container *volume_container = (Material_container *)malloc(maxno_volumes*sizeof(Material_container));
+  static Material_container *volume_container;// = (Material_container *)malloc(maxno_volumes*sizeof(Material_container));
+  cudaMallocManaged(&volume_container, maxno_volumes*sizeof(Material_container));
   std::vector<vecgeom::LogicalVolume *> logicalvolumes;
   vecgeom::GeoManager::Instance().GetAllLogicalVolumes(logicalvolumes);
 
   int i = 0;
 
   // Fill material structure
+  
   for (auto lvol : logicalvolumes) {
       lvol->Print();
       if (!strcmp(lvol->GetName(), "World")) {
-        volume_container[i].material = kRTair;
-        volume_container[i].fObjColor = 0x0000FF80; 
+        volume_container[i].material = kRTglass;
+        volume_container[i].fObjColor = 0x0000FF80;
+        volume_container[i].id = 564;
       }
 
       else if (!strcmp(lvol->GetName(), "SphVol")) {
-        volume_container[i].material = kRTglass;
-        volume_container[i].fObjColor = 0x0000FF80; 
+        volume_container[i].material = kRTaluminium;
+        volume_container[i].fObjColor = 0x0000FF80;
+        volume_container[i].id = 879;
       }
       
       else if (!strcmp(lvol->GetName(), "BoxVol"))  {
-        volume_container[i].material = kRTaluminium;
-        volume_container[i].fObjColor = 0x0000FF80; 
+        volume_container[i].material = kRTair;
+        volume_container[i].fObjColor = 0x0000FF80;
+        volume_container[i].id = 43;
       }
       
-      lvol->SetMaterialCutsPtr(&volume_container[i]);
+      // if (!on_gpu)
+      lvol->SetBasketManagerPtr(&volume_container[i]);
+
+      auto a = (Material_container *) lvol->GetBasketManagerPtr();
+
+      printf("id[%d] = %d mat = %d\n", i, a->id, a->material);
       i++;
   }
 
-  static __device__ Material_container *vol2;
-  cudaMalloc(&vol2, sizeof(volume_container));
-  cudaMemcpy(vol2, volume_container, sizeof(volume_container), cudaMemcpyHostToDevice);
+  for (int i = 0; i < 3; ++i)
+  {
+    // printf("material[%d] = %d\n", i, volume_container[i].material);
+    // printf("fObjColor[%d] = %d\n", i, volume_container[i].fObjColor);
+  }
+
 
   if (on_gpu) {
     ierr = executePipelineGPU(world, argc, argv);
   } else {
-    ierr = executePipelineCPU(world, argc, argv);
+    ierr = executePipelineCPU(volume_container, world, argc, argv);
   }
   if (ierr) std::cout << "TestNavIndex FAILED\n";
 

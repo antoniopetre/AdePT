@@ -22,9 +22,10 @@ void generateRays(int id, adept::BlockData<Ray_t> *rays)
 
 COPCORE_CALLABLE_FUNC(generateRays)
 
+
 __host__ __device__
 void renderKernels(int id, const RaytracerData_t &rtdata, NavIndex_t *input_buffer,
-                   NavIndex_t *output_buffer, int generation)
+                   NavIndex_t *output_buffer, int generation, adept::Color_t *color, Material_container **volume_container)
 {
   // Propagate all rays and write out the image on the backend
   // size_t n10  = 0.1 * rtdata.fNrays;
@@ -45,13 +46,10 @@ void renderKernels(int id, const RaytracerData_t &rtdata, NavIndex_t *input_buff
 
     ray = rtdata.sparse_rays[0]->next_free(*ray);
 
-    auto pixel_color = Raytracer::RaytraceOne(rtdata, *ray, px, py, id, generation);
+    auto pixel_color = Raytracer::RaytraceOne(rtdata, *ray, px, py, id, generation, volume_container);
 
-    int pixel_index = 4 * ray_index;
-    output_buffer[pixel_index + 0] += pixel_color.fComp.red;
-    output_buffer[pixel_index + 1] += pixel_color.fComp.green;
-    output_buffer[pixel_index + 2] += pixel_color.fComp.blue;
-    output_buffer[pixel_index + 3] = 255;
+    int pixel_index = ray_index;
+    color[pixel_index] += pixel_color;
   }
 
   else {
@@ -65,16 +63,12 @@ void renderKernels(int id, const RaytracerData_t &rtdata, NavIndex_t *input_buff
       py = ray_index / rtdata.fSize_px;
     }
 
-    Ray_t ray = (*rtdata.sparse_rays[generation])[id];
+    Ray_t *ray = &(*rtdata.sparse_rays[generation])[id];
 
-    auto pixel_color = Raytracer::RaytraceOne(rtdata, ray, px, py, id, generation);
+    auto pixel_color = Raytracer::RaytraceOne(rtdata, *ray, px, py, id, generation, volume_container);
 
-    int pixel_index = 4 * ray_index;
-    output_buffer[pixel_index + 0] += pixel_color.fComp.red;
-    output_buffer[pixel_index + 1] += pixel_color.fComp.green;
-    output_buffer[pixel_index + 2] += pixel_color.fComp.blue;
-    output_buffer[pixel_index + 3] = 255;
-
+    int pixel_index = ray_index;
+    color[pixel_index] += pixel_color;
 
   }
   

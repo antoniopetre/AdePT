@@ -139,7 +139,57 @@ void RenderTiledImage(adept::BlockData<Ray_t> *rays, cuda::RaytracerData_t *rtda
   COPCORE_CUDA_CHECK(cudaGetLastError());
 }
 
-void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata) {
+
+
+__global__ void AttachRegions(vecgeom::VPlacedVolume *gpu_world, Material_container **volume_container, int pos)
+{
+
+  // for (int i = -2; i < 1; ++i)
+  // {
+  //   auto lvol = (vecgeom::LogicalVolume *)gpu_world[i].GetLogicalVolume();
+  //   lvol->Print();
+  //   lvol->SetBasketManagerPtr(volume_container[2+i]);
+  // }
+  // printf("\nPrint:\n");
+  // for (int i = 0; i > -3; i--)
+  // {
+  //   auto lvol = (vecgeom::LogicalVolume *)gpu_world[i].GetLogicalVolume();
+  //   auto a = (Material_container *) lvol->GetBasketManagerPtr();
+  //   lvol->Print();
+  //   printf("id[%d] = %d\n", i, a->id);
+  // }
+
+  auto lvol = (vecgeom::LogicalVolume *)gpu_world->GetLogicalVolume();
+  // gpu_world->Print();
+  lvol->Print();
+  lvol->SetBasketManagerPtr(volume_container[pos]);
+
+  auto a = (Material_container *) lvol->GetBasketManagerPtr();
+  printf("id[%d] = %d mat = %d\n", pos, a->id, a->material);
+
+  const vecgeom::Vector<vecgeom::VPlacedVolume const *> placedvolumes = lvol->GetDaughters();
+
+  for (auto x: placedvolumes) {
+    pos++;
+    AttachRegions<<<1,1>>>((vecgeom::VPlacedVolume *)  x, volume_container, pos);
+  }
+
+
+
+}
+
+
+
+
+
+
+
+
+// void pune(vecgeom::VPlacedVolume *gpu_world, Material_container **volume_container) {
+//   pune_p<<<1,1>>>(gpu_world, volume_container);
+// }
+
+void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata, Material_container **volume_container) {
   
   // Load and synchronize the geometry on the GPU
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
@@ -149,11 +199,29 @@ void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata) {
   auto gpu_world = cudaManager.world_gpu();
   assert(gpu_world && "GPU world volume is a null pointer");
 
+
+
+  
+
   // Initialize the navigation state for the view point
   vecgeom::NavStateIndex vpstate;
   LoopNavigator::LocatePointIn(rtdata->fWorld, rtdata->fStart, vpstate, true);
   rtdata->fVPstate = vpstate;
   rtdata->fWorld   = gpu_world;
+
+  AttachRegions<<<1,1>>>((vecgeom::VPlacedVolume *)  rtdata->fWorld, volume_container, 0);
+
+  // pune_p<<<1,1>>>(gpu_world, volume_container);
+
+  // for (int i = 0; i < 3; ++i)
+  // {
+  //   auto a = (Material_container *) rtdata->fWorld[i].GetLogicalVolume()->GetBasketManagerPtr();
+  //   printf("material e %d\n", a->material);
+  // }
+
+
+
+  
 
 }
 

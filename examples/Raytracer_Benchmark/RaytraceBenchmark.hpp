@@ -4,6 +4,7 @@
 #include "Raytracer.h"
 #include "kernels.h"
 #include <vector>
+#include "Color.h"
 
 #include <CopCore/Global.h>
 #include <AdePT/ArgParser.h>
@@ -22,22 +23,23 @@
 #include <VecGeom/gdml/Frontend.h>
 #endif
 
-void initiliazeCudaWorld(RaytracerData_t *rtdata);
+void initiliazeCudaWorld(RaytracerData_t *rtdata, Material_container **volume_container);
 
 void RenderTiledImage(adept::BlockData<Ray_t> *rays, RaytracerData_t *rtdata, NavIndex_t *output_buffer,
                       int block_size);
 
 template <copcore::BackendType backend>
-void InitRTdata(RaytracerData_t *rtdata)
+void InitRTdata(RaytracerData_t *rtdata, Material_container **volume_container)
 {
 
   if (backend == copcore::BackendType::CUDA) {
-    initiliazeCudaWorld((RaytracerData_t *)rtdata);
+    initiliazeCudaWorld((RaytracerData_t *)rtdata, volume_container);
   } else {
     vecgeom::NavStateIndex vpstate;
     LoopNavigator::LocatePointIn(rtdata->fWorld, rtdata->fStart, vpstate, true);
     rtdata->fVPstate = vpstate;
   }
+
 }
 
 template <copcore::BackendType backend>
@@ -52,6 +54,9 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
 
   // RT view as in { kRTVparallel = 0, kRTVperspective };
   OPTION_INT(view, 1);
+
+  // Use reflection
+  OPTION_BOOL(reflection, 0);
 
   // zoom w.r.t to the default view mode
   OPTION_DOUBLE(zoom, 3.5);
@@ -80,19 +85,47 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
 
   rtdata->fScreenPos.Set(screenx, screeny, screenz);
   rtdata->fUp.Set(upx, upy, upz);
-  rtdata->fZoom     = zoom;
-  rtdata->fModel    = (ERTmodel)model;
-  rtdata->fView     = (ERTView)view;
-  rtdata->fSize_px  = px;
-  rtdata->fSize_py  = py;
-  rtdata->fBkgColor = bkgcol;
-  rtdata->fObjColor = objcol;
-  rtdata->fVisDepth = vdepth;
+  rtdata->fZoom       = zoom;
+  rtdata->fModel      = (ERTmodel)model;
+  rtdata->fView       = (ERTView)view;
+  rtdata->fSize_px    = px;
+  rtdata->fSize_py    = py;
+  rtdata->fBkgColor   = bkgcol;
+  rtdata->fObjColor   = objcol;
+  rtdata->fVisDepth   = vdepth;
+  rtdata->fReflection = reflection;
 
+  int maxno_volumes = 10;
+  static Material_container **volume_container;
+  cudaMallocManaged(&volume_container, maxno_volumes*sizeof(Material_container *));
+
+  for (int i = 0; i < 3; ++i)
+  {
+    cudaMallocManaged(&volume_container[i], sizeof(Material_container));
+    if (i == 2) {
+      volume_container[i]->material = kRTair;
+      volume_container[i]->fObjColor = 0x0000FF80;
+      volume_container[i]->id = 43;
+    }
+    if (i == 0) {
+      volume_container[i]->material = kRTglass;
+      volume_container[i]->fObjColor = 0x0000FF80;
+      volume_container[i]->id = 564;
+    }
+    if (i == 1) {
+      volume_container[i]->material = kRTaluminium;
+      volume_container[i]->fObjColor = 0x0000FF80;
+      volume_container[i]->id = 879;
+    }
+  }
+
+  printf("1\n");
   Raytracer::InitializeModel((Raytracer::VPlacedVolumePtr_t)world, *rtdata);
 
-  InitRTdata<backend>(rtdata);
+  printf("2\n");
+  InitRTdata<backend>(rtdata, volume_container);
 
+  printf("3\n");
   rtdata->Print();
 
   constexpr int VectorSize = 1 << 20;
@@ -108,21 +141,23 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
 
   int no_generations = 1;
 
-  if (rtdata->fModel == kRTfresnel) no_generations = 10;
+  if (rtdata->fReflection) no_generations = 10;
 
   // Allocate the rays container
   Vector_t **array_ptr;
   COPCORE_CUDA_CHECK(cudaMallocManaged(&array_ptr, sizeof(Vector_t *)));
   Vector_t::MakeInstanceAt(array_ptr);
 
+  
   for (int i = 0; i < no_generations; ++i)
   {
-    cudaMallocManaged(&(array_ptr[i]), sizeof(Vector_t));
+    COPCORE_CUDA_CHECK(cudaMallocManaged(&(array_ptr[i]), sizeof(Vector_t)));
     Vector_t::MakeInstanceAt(array_ptr[i]);
   }
 
   rtdata->sparse_rays = array_ptr;
 
+  // plm<backend>((RaytracerData_t *)rtdata, volume_container);
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   // Boilerplate to get the pointers to the device functions to be used
@@ -132,16 +167,27 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   Stream_t stream;
   StreamStruct::CreateStream(stream);
 
+  Launcher_t renderKernel(stream);
+  
   // Allocate and initialize all rays on the host
   size_t raysize = Ray_t::SizeOfInstance();
   printf("=== Allocating %.3f MB of ray data on the %s\n", (float)rtdata->fNrays * raysize / 1048576,
          copcore::BackendName(backend));
+
 
   copcore::Allocator<NavIndex_t, backend> charAlloc;
   NavIndex_t *input_buffer = charAlloc.allocate(rtdata->fNrays * raysize * sizeof(NavIndex_t));
 
   copcore::Allocator<NavIndex_t, backend> ucharAlloc;
   NavIndex_t *output_buffer = ucharAlloc.allocate(4 * rtdata->fNrays * sizeof(NavIndex_t));
+
+  adept::Color_t *color;
+
+  COPCORE_CUDA_CHECK(cudaMallocManaged(&color, rtdata->fSize_px*rtdata->fSize_py*sizeof(adept::Color_t)));
+
+  for (int i = 0; i < rtdata->fSize_px*rtdata->fSize_py; i++) {
+    color[i] = 0;
+  }
 
   // Construct rays in place
   for (int iray = 0; iray < rtdata->fNrays; ++iray)
@@ -156,15 +202,34 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   unsigned *nselected_hd;
   COPCORE_CUDA_CHECK(cudaMallocManaged(&nselected_hd, sizeof(unsigned)));
 
+
   if (backend == copcore::BackendType::CUDA && use_tiles) {
     // RenderTiledImage(rays, (RaytracerData_t *)rtdata, output_buffer, block_size);
   } else {
     Launcher_t renderKernel(stream);
     for (int i = 0; i < no_generations; ++i)
     {
-      renderKernel.Run(renderkernelFunc, VectorSize, {0, 0}, *rtdata, input_buffer, output_buffer, i);
+      renderKernel.Run(renderkernelFunc, VectorSize, {0, 0}, *rtdata, input_buffer, output_buffer, i, color, volume_container);
+      COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+
+      auto select_func = [] __device__(int i, const VectorInterface *arr) { return ((*arr)[i].fDone == true ); };
+      VectorInterface::select(rtdata->sparse_rays[i], select_func, sel_vector_d, nselected_hd);
+      COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+
+      printf("nsel e %d\n", *nselected_hd);
+
+      VectorInterface::release_selected(rtdata->sparse_rays[i], sel_vector_d, nselected_hd);
       COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
     }
+
+  }
+
+  for (int i = 0; i < rtdata->fSize_px*rtdata->fSize_py; i++) {
+    int pixel_index = 4*i;
+    output_buffer[pixel_index + 0] += color[i].fComp.red;
+    output_buffer[pixel_index + 1] += color[i].fComp.green;
+    output_buffer[pixel_index + 2] += color[i].fComp.blue;
+    output_buffer[pixel_index + 3] = 255;
   }
 
   // Print basic information about containers
@@ -177,5 +242,6 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   // Write the output
   write_ppm("output.ppm", output_buffer, rtdata->fSize_px, rtdata->fSize_py);
 
+  
   return 0;
 }
