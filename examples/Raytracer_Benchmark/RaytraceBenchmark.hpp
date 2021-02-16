@@ -103,29 +103,26 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   {
     cudaMallocManaged(&volume_container[i], sizeof(Material_container));
     if (i == 2) {
-      volume_container[i]->material = kRTair;
+      volume_container[i]->material = kRTaluminium;
       volume_container[i]->fObjColor = 0x0000FF80;
       volume_container[i]->id = 43;
     }
     if (i == 0) {
-      volume_container[i]->material = kRTglass;
+      volume_container[i]->material = kRTair;
       volume_container[i]->fObjColor = 0x0000FF80;
       volume_container[i]->id = 564;
     }
     if (i == 1) {
-      volume_container[i]->material = kRTaluminium;
+      volume_container[i]->material = kRTglass;
       volume_container[i]->fObjColor = 0x0000FF80;
       volume_container[i]->id = 879;
     }
   }
 
-  printf("1\n");
   Raytracer::InitializeModel((Raytracer::VPlacedVolumePtr_t)world, *rtdata);
 
-  printf("2\n");
   InitRTdata<backend>(rtdata, volume_container);
 
-  printf("3\n");
   rtdata->Print();
 
   constexpr int VectorSize = 1 << 20;
@@ -157,7 +154,6 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
 
   rtdata->sparse_rays = array_ptr;
 
-  // plm<backend>((RaytracerData_t *)rtdata, volume_container);
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   // Boilerplate to get the pointers to the device functions to be used

@@ -71,8 +71,7 @@ int main(int argc, char *argv[])
 
   int i = 0;
 
-  // Fill material structure
-  
+  // Fill material structure 
   for (auto lvol : logicalvolumes) {
       lvol->Print();
       if (!strcmp(lvol->GetName(), "World")) {
@@ -93,21 +92,11 @@ int main(int argc, char *argv[])
         volume_container[i].id = 43;
       }
       
-      // if (!on_gpu)
-      lvol->SetBasketManagerPtr(&volume_container[i]);
+      if (!on_gpu)
+        lvol->SetBasketManagerPtr(&volume_container[i]);
 
-      auto a = (Material_container *) lvol->GetBasketManagerPtr();
-
-      printf("id[%d] = %d mat = %d\n", i, a->id, a->material);
       i++;
   }
-
-  for (int i = 0; i < 3; ++i)
-  {
-    // printf("material[%d] = %d\n", i, volume_container[i].material);
-    // printf("fObjColor[%d] = %d\n", i, volume_container[i].fObjColor);
-  }
-
 
   if (on_gpu) {
     ierr = executePipelineGPU(world, argc, argv);

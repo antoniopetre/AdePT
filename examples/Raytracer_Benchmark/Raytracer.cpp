@@ -126,7 +126,6 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, in
   ray.fDone = ray.fVolume == nullptr;
   if (ray.fDone) return ray.fColor;
 
-
   // Now propagate ray
   while (!ray.fDone) {
    
@@ -181,29 +180,11 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, Materi
   auto lastvol = (Ray_t::VPlacedVolumePtr_t)ray.fCrtState.Top();
   auto nextvol = ray.fVolume;
 
-  // printf("nextvol e %d si lastvol e %d\n", nextvol->id(), lastvol->id());
-
-  // if ( nextvol->id() == 0) {
-  //   printf("0: nextvol e %d si materialu e %d\n",  nextvol->id(), volume_container[nextvol->id()]->material);
-  // }
-  // else if ( nextvol->id() == 1) {
-  //   printf("1: nextvol e %d si materialu e %d\n",  nextvol->id(), volume_container[nextvol->id()]->material);
-  // }
-  // else if ( nextvol->id() == 2) {
-  //   printf("2: nextvol e %d si materialu e %d\n",  nextvol->id(), volume_container[nextvol->id()]->material);
-  // }
-  // else {
-  //   printf("CE NAIBA\n");
-  // }
-
   auto medium_prop_last = (Material_container *)lastvol->GetLogicalVolume()->GetBasketManagerPtr();
   auto medium_prop_next = (Material_container *)nextvol->GetLogicalVolume()->GetBasketManagerPtr();
 
-  // printf("last e %d si now e %d\n", medium_prop_last->id, medium_prop_next->id);
-
-  if (volume_container[nextvol->id()]->material == kRTglass || volume_container[lastvol->id()]->material == kRTglass) {
+  if (medium_prop_next->material == kRTglass || medium_prop_last->material == kRTglass) {
     bool valid = depth >= rtdata.fVisDepth;
-    // printf("CEVA3\n");
     if (valid) {
 
       if (!rtdata.fReflection) {
@@ -211,18 +192,15 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, Materi
         auto object_color  = medium_prop_next->fObjColor; //volume_container[ray.fVolume->id()]->fObjColor;
         object_color      *= (1 - transparency);
         ray.fColor        += object_color;
-        // printf("CEVA2\n");
       }
 
       else {
 
         float ior1 = 1., ior2 = 1.5; // intra in sfera
-        if (volume_container[lastvol->id()]->material == kRTglass) { // iese din sfera
+        if (medium_prop_last->material == kRTglass) { // iese din sfera
           ior1 = 1.5;
           ior2 = 1.;
         }
-
-        // printf("CEVA\n");
       
         vecgeom::Transformation3D m;
         ray.fNextState.TopMatrix(m);
@@ -248,7 +226,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, Materi
           ray.intensity *= (1-kr);  // Update the intensity of the ray
 
         
-          if (volume_container[lastvol->id()]->material == kRTglass) { // iese din sfera
+          if (medium_prop_last->material == kRTglass) { // iese din sfera
             // auto object_color  = rtdata.fBkgColor;
             // object_color      *= 0.00001;
             // ray.fColor += object_color;
@@ -295,13 +273,11 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, Materi
       }
     }
   }
-  else if ((volume_container[nextvol->id()])->material == kRTair) {
-    // printf("CEVA4\n");
+  else if (medium_prop_next->material == kRTair) {
     return;
   }
   
-  else if (volume_container[nextvol->id()]->material == kRTaluminium) { // specular reflection
-    // printf("CEVA5\n");
+  else if (medium_prop_next->material == kRTaluminium) { // specular reflection
     // Calculate normal at the hit point
     bool valid = depth >= rtdata.fVisDepth;
     if (valid) {
