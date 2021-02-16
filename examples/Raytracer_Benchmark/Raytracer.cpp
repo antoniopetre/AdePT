@@ -89,7 +89,7 @@ void InitializeModel(vecgeom::VPlacedVolume const *world, RaytracerData_t &rtdat
   rtdata.fNrays = rtdata.fSize_px * rtdata.fSize_py;
 }
 
-adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py, int index, int generation, Material_container **volume_container)
+adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py, int index, int generation)
 {
   constexpr int kMaxTries = 10;
   constexpr double kPush  = 1.e-8;
@@ -120,12 +120,13 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, in
 
     if (ray.fVolume) {
       ray.fNextState = ray.fCrtState;
-      Raytracer::ApplyRTmodel(ray, snext, rtdata, volume_container);
+      Raytracer::ApplyRTmodel(ray, snext, rtdata);
     }
   }
   ray.fDone = ray.fVolume == nullptr;
   if (ray.fDone) return ray.fColor;
 
+  
   // Now propagate ray
   while (!ray.fDone) {
    
@@ -149,6 +150,7 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, in
       nsmall++;
     }
 
+    
     if (nsmall == kMaxTries) {
       // std::cout << "error for ray (" << px << ", " << py << ")\n";
       ray.fDone  = true;
@@ -162,42 +164,45 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, in
 
     if (ray.fVolume == nullptr) ray.fDone = true;
 
-    if (nextvol) Raytracer::ApplyRTmodel(ray, snext, rtdata, volume_container);
+    if (nextvol) Raytracer::ApplyRTmodel(ray, snext, rtdata);
+
     
     auto tmpstate  = ray.fCrtState;
     ray.fCrtState  = ray.fNextState;
     ray.fNextState = tmpstate;
+
   }
   
   ray.fColor *= ray.intensity;
   return ray.fColor;
 }
 
-void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, Material_container **volume_container)
+void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
 {
   int depth = ray.fNextState.GetLevel();
 
   auto lastvol = (Ray_t::VPlacedVolumePtr_t)ray.fCrtState.Top();
   auto nextvol = ray.fVolume;
 
-  auto medium_prop_last = (Material_container *)lastvol->GetLogicalVolume()->GetBasketManagerPtr();
-  auto medium_prop_next = (Material_container *)nextvol->GetLogicalVolume()->GetBasketManagerPtr();
+  // Get material structure for last and next volumes
+  auto medium_prop_last = (MyMediumProp *)lastvol->GetLogicalVolume()->GetBasketManagerPtr();
+  auto medium_prop_next = (MyMediumProp *)nextvol->GetLogicalVolume()->GetBasketManagerPtr();
 
-  if (medium_prop_next->material == kRTglass || medium_prop_last->material == kRTglass) {
+  if (medium_prop_next->material == kRTtransparent || medium_prop_last->material == kRTtransparent) {
     bool valid = depth >= rtdata.fVisDepth;
     if (valid) {
 
       if (!rtdata.fReflection) {
         float transparency = 0.85;
-        auto object_color  = medium_prop_next->fObjColor; //volume_container[ray.fVolume->id()]->fObjColor;
+        auto object_color  = medium_prop_next->fObjColor;
         object_color      *= (1 - transparency);
         ray.fColor        += object_color;
       }
 
       else {
 
-        float ior1 = 1., ior2 = 1.5; // intra in sfera
-        if (medium_prop_last->material == kRTglass) { // iese din sfera
+        float ior1 = 1., ior2 = 1.5; // case when the next volume is transparent
+        if (medium_prop_last->material == kRTtransparent) { // case when the last volume is transparent
           ior1 = 1.5;
           ior2 = 1.;
         }
@@ -226,7 +231,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, Materi
           ray.intensity *= (1-kr);  // Update the intensity of the ray
 
         
-          if (medium_prop_last->material == kRTglass) { // iese din sfera
+          if (medium_prop_last->material == kRTtransparent) { // case when the next volume is transparent
             // auto object_color  = rtdata.fBkgColor;
             // object_color      *= 0.00001;
             // ray.fColor += object_color;
@@ -273,11 +278,11 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, Materi
       }
     }
   }
-  else if (medium_prop_next->material == kRTair) {
+  else if (medium_prop_next->material == kRTxray) {
     return;
   }
   
-  else if (medium_prop_next->material == kRTaluminium) { // specular reflection
+  else if (medium_prop_next->material == kRTspecular) { // specular reflection
     // Calculate normal at the hit point
     bool valid = depth >= rtdata.fVisDepth;
     if (valid) {
@@ -294,7 +299,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, Materi
       // calf                   = vecCore::math::Pow(calf, fShininess);
       auto specular_color = rtdata.fBkgColor;
       specular_color.MultiplyLightChannel(1. + 0.5 * calf);
-      auto object_color = volume_container[ray.fVolume->id()]->fObjColor;
+      auto object_color = medium_prop_next->fObjColor;
       object_color.MultiplyLightChannel(1. + 0.5 * calf);
       ray.fColor = specular_color + object_color;
       ray.fDone  = true;

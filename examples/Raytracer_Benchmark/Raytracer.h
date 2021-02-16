@@ -26,11 +26,9 @@ inline namespace COPCORE_IMPL {
 
 enum ERTmodel { kRTxray = 0, kRTspecular, kRTtransparent, kRTfresnel };
 enum ERTView { kRTVparallel = 0, kRTVperspective };
-enum ERTmaterial { kRTair = 0, kRTglass, kRTaluminium };
 
-struct Material_container {
-    int id;
-    ERTmaterial material;
+struct MyMediumProp {
+    ERTmodel material;
     adept::Color_t fObjColor;
 };
 
@@ -158,7 +156,7 @@ __host__ __device__
 void InitializeModel(VPlacedVolumePtr_t world, RaytracerData_t &data);
 
 __host__ __device__
-void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata, Material_container **volume_container);
+void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata);
 
 /// \brief Entry point to propagate all rays
 __host__ __device__
@@ -166,7 +164,7 @@ void PropagateRays(adept::BlockData<Ray_t> *rays, RaytracerData_t &data, unsigne
                    unsigned char *output_buffer);
 
 __host__ __device__
-adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py, int index, int generation, Material_container **volume_container);
+adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py, int index, int generation);
 
 } // End namespace Raytracer
 

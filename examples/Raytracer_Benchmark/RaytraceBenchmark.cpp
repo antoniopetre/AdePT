@@ -25,12 +25,16 @@
 #include <VecGeom/gdml/Frontend.h>
 #endif
 
-int executePipelineGPU(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[]);
+namespace cuda {
+struct MyMediumProp;
+} // namespace cuda
 
-int executePipelineCPU(const Material_container *volume, const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[])
+int executePipelineGPU(const cuda::MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[]);
+
+int executePipelineCPU(const MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[])
 {
 
-  int result = runSimulation<copcore::BackendType::CPU>(world, argc, argv);
+  int result = runSimulation<copcore::BackendType::CPU>(volume_container, world, argc, argv);
   return result;
 }
 
@@ -64,8 +68,9 @@ int main(int argc, char *argv[])
   const int maxno_volumes = 10;
 
   // Allocate material structure
-  static Material_container *volume_container;// = (Material_container *)malloc(maxno_volumes*sizeof(Material_container));
-  cudaMallocManaged(&volume_container, maxno_volumes*sizeof(Material_container));
+  static MyMediumProp *volume_container;
+  cudaMallocManaged(&volume_container, maxno_volumes*sizeof(MyMediumProp));
+
   std::vector<vecgeom::LogicalVolume *> logicalvolumes;
   vecgeom::GeoManager::Instance().GetAllLogicalVolumes(logicalvolumes);
 
@@ -73,33 +78,30 @@ int main(int argc, char *argv[])
 
   // Fill material structure 
   for (auto lvol : logicalvolumes) {
-      lvol->Print();
+      // lvol->Print();
       if (!strcmp(lvol->GetName(), "World")) {
-        volume_container[i].material = kRTglass;
+        volume_container[i].material = kRTxray;
         volume_container[i].fObjColor = 0x0000FF80;
-        volume_container[i].id = 564;
       }
 
       else if (!strcmp(lvol->GetName(), "SphVol")) {
-        volume_container[i].material = kRTaluminium;
+        volume_container[i].material = kRTtransparent;
         volume_container[i].fObjColor = 0x0000FF80;
-        volume_container[i].id = 879;
       }
       
       else if (!strcmp(lvol->GetName(), "BoxVol"))  {
-        volume_container[i].material = kRTair;
+        volume_container[i].material = kRTspecular;
         volume_container[i].fObjColor = 0x0000FF80;
-        volume_container[i].id = 43;
       }
       
       if (!on_gpu)
         lvol->SetBasketManagerPtr(&volume_container[i]);
-
       i++;
   }
 
   if (on_gpu) {
-    ierr = executePipelineGPU(world, argc, argv);
+    auto volume_container_cuda = reinterpret_cast<cuda::MyMediumProp *>(volume_container);
+    ierr = executePipelineGPU(volume_container_cuda, world, argc, argv);
   } else {
     ierr = executePipelineCPU(volume_container, world, argc, argv);
   }

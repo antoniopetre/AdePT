@@ -141,14 +141,12 @@ void RenderTiledImage(adept::BlockData<Ray_t> *rays, cuda::RaytracerData_t *rtda
 
 
 
-__global__ void AttachRegions(vecgeom::VPlacedVolume *gpu_world, Material_container **volume_container, int pos)
+// Attach material structure to all logical volumes
+__global__ void AttachRegions(vecgeom::VPlacedVolume *gpu_world, const MyMediumProp *volume_container, int pos)
 {
   auto lvol = (vecgeom::LogicalVolume *)gpu_world->GetLogicalVolume();
-  lvol->Print();
-  lvol->SetBasketManagerPtr(volume_container[pos]);
-
-  auto a = (Material_container *) lvol->GetBasketManagerPtr();
-  printf("id[%d] = %d mat = %d\n", pos, a->id, a->material);
+  // lvol->Print();
+  lvol->SetBasketManagerPtr((void *)&volume_container[pos]);
 
   const vecgeom::Vector<vecgeom::VPlacedVolume const *> placedvolumes = lvol->GetDaughters();
 
@@ -159,7 +157,7 @@ __global__ void AttachRegions(vecgeom::VPlacedVolume *gpu_world, Material_contai
 }
 
 
-void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata, Material_container **volume_container) {
+void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata, const MyMediumProp *volume_container) {
   
   // Load and synchronize the geometry on the GPU
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
@@ -178,10 +176,9 @@ void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata, Material_container **vol
   AttachRegions<<<1,1>>>((vecgeom::VPlacedVolume *)  rtdata->fWorld, volume_container, 0);
 }
 
-int executePipelineGPU(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[])
+int executePipelineGPU(const MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[])
 {
-
   int result;
-  result = runSimulation<copcore::BackendType::CUDA>(world, argc, argv);
+  result = runSimulation<copcore::BackendType::CUDA>(volume_container, world, argc, argv);
   return result;
 }

@@ -23,15 +23,14 @@
 #include <VecGeom/gdml/Frontend.h>
 #endif
 
-void initiliazeCudaWorld(RaytracerData_t *rtdata, Material_container **volume_container);
+void initiliazeCudaWorld(RaytracerData_t *rtdata, const MyMediumProp *volume_container);
 
 void RenderTiledImage(adept::BlockData<Ray_t> *rays, RaytracerData_t *rtdata, NavIndex_t *output_buffer,
                       int block_size);
 
 template <copcore::BackendType backend>
-void InitRTdata(RaytracerData_t *rtdata, Material_container **volume_container)
+void InitRTdata(RaytracerData_t *rtdata, const MyMediumProp *volume_container)
 {
-
   if (backend == copcore::BackendType::CUDA) {
     initiliazeCudaWorld((RaytracerData_t *)rtdata, volume_container);
   } else {
@@ -43,7 +42,7 @@ void InitRTdata(RaytracerData_t *rtdata, Material_container **volume_container)
 }
 
 template <copcore::BackendType backend>
-int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[])
+int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[])
 {
   // image size in pixels
   OPTION_INT(px, 1840);
@@ -95,30 +94,6 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   rtdata->fVisDepth   = vdepth;
   rtdata->fReflection = reflection;
 
-  int maxno_volumes = 10;
-  static Material_container **volume_container;
-  cudaMallocManaged(&volume_container, maxno_volumes*sizeof(Material_container *));
-
-  for (int i = 0; i < 3; ++i)
-  {
-    cudaMallocManaged(&volume_container[i], sizeof(Material_container));
-    if (i == 2) {
-      volume_container[i]->material = kRTaluminium;
-      volume_container[i]->fObjColor = 0x0000FF80;
-      volume_container[i]->id = 43;
-    }
-    if (i == 0) {
-      volume_container[i]->material = kRTair;
-      volume_container[i]->fObjColor = 0x0000FF80;
-      volume_container[i]->id = 564;
-    }
-    if (i == 1) {
-      volume_container[i]->material = kRTglass;
-      volume_container[i]->fObjColor = 0x0000FF80;
-      volume_container[i]->id = 879;
-    }
-  }
-
   Raytracer::InitializeModel((Raytracer::VPlacedVolumePtr_t)world, *rtdata);
 
   InitRTdata<backend>(rtdata, volume_container);
@@ -144,7 +119,6 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   Vector_t **array_ptr;
   COPCORE_CUDA_CHECK(cudaMallocManaged(&array_ptr, sizeof(Vector_t *)));
   Vector_t::MakeInstanceAt(array_ptr);
-
   
   for (int i = 0; i < no_generations; ++i)
   {
@@ -198,24 +172,23 @@ int runSimulation(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv
   unsigned *nselected_hd;
   COPCORE_CUDA_CHECK(cudaMallocManaged(&nselected_hd, sizeof(unsigned)));
 
-
   if (backend == copcore::BackendType::CUDA && use_tiles) {
     // RenderTiledImage(rays, (RaytracerData_t *)rtdata, output_buffer, block_size);
   } else {
     Launcher_t renderKernel(stream);
     for (int i = 0; i < no_generations; ++i)
     {
-      renderKernel.Run(renderkernelFunc, VectorSize, {0, 0}, *rtdata, input_buffer, output_buffer, i, color, volume_container);
+      renderKernel.Run(renderkernelFunc, VectorSize, {0, 0}, *rtdata, input_buffer, output_buffer, i, color);
       COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-      auto select_func = [] __device__(int i, const VectorInterface *arr) { return ((*arr)[i].fDone == true ); };
-      VectorInterface::select(rtdata->sparse_rays[i], select_func, sel_vector_d, nselected_hd);
-      COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+      // auto select_func = [] __device__(int i, const VectorInterface *arr) { return ((*arr)[i].fDone == true ); };
+      // VectorInterface::select(rtdata->sparse_rays[i], select_func, sel_vector_d, nselected_hd);
+      // COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-      printf("nsel e %d\n", *nselected_hd);
+      // printf("nsel e %d\n", *nselected_hd);
 
-      VectorInterface::release_selected(rtdata->sparse_rays[i], sel_vector_d, nselected_hd);
-      COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+      // VectorInterface::release_selected(rtdata->sparse_rays[i], sel_vector_d, nselected_hd);
+      // COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
     }
 
   }
