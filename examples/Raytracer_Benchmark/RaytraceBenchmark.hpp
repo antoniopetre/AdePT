@@ -25,8 +25,7 @@
 
 void initiliazeCudaWorld(RaytracerData_t *rtdata, const MyMediumProp *volume_container);
 
-void RenderTiledImage(adept::BlockData<Ray_t> *rays, RaytracerData_t *rtdata, NavIndex_t *output_buffer,
-                      int block_size);
+void RenderTiledImage(RaytracerData_t *rtdata, NavIndex_t *output_buffer, int generation, int block_size);
 
 template <copcore::BackendType backend>
 void InitRTdata(RaytracerData_t *rtdata, const MyMediumProp *volume_container)
@@ -38,7 +37,6 @@ void InitRTdata(RaytracerData_t *rtdata, const MyMediumProp *volume_container)
     LoopNavigator::LocatePointIn(rtdata->fWorld, rtdata->fStart, vpstate, true);
     rtdata->fVPstate = vpstate;
   }
-
 }
 
 template <copcore::BackendType backend>
@@ -131,13 +129,14 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   // Boilerplate to get the pointers to the device functions to be used
+  COPCORE_CALLABLE_DECLARE(generateRaysFunc, generateRays);  
   COPCORE_CALLABLE_DECLARE(renderkernelFunc, renderKernels);
 
   // Create a stream to work with.
   Stream_t stream;
   StreamStruct::CreateStream(stream);
 
-  Launcher_t renderKernel(stream);
+  Launcher_t generate(stream);
   
   // Allocate and initialize all rays on the host
   size_t raysize = Ray_t::SizeOfInstance();
@@ -167,30 +166,38 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   timer.Start();
 
   unsigned *sel_vector_d;
-  COPCORE_CUDA_CHECK(cudaMalloc(&sel_vector_d, VectorSize * sizeof(unsigned)));
+  COPCORE_CUDA_CHECK(cudaMallocManaged(&sel_vector_d, VectorSize * sizeof(unsigned)));
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   unsigned *nselected_hd;
   COPCORE_CUDA_CHECK(cudaMallocManaged(&nselected_hd, sizeof(unsigned)));
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+
+  // Add initial rays in container
+  generate.Run(generateRaysFunc, rtdata->fSize_px*rtdata->fSize_py, {0, 0}, *rtdata, input_buffer);
+  COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   if (backend == copcore::BackendType::CUDA && use_tiles) {
-    // RenderTiledImage(rays, (RaytracerData_t *)rtdata, output_buffer, block_size);
+    RenderTiledImage((RaytracerData_t *)rtdata, output_buffer, 0, block_size);
   } else {
     Launcher_t renderKernel(stream);
-    for (int i = 0; i < no_generations; ++i)
-    {
-      renderKernel.Run(renderkernelFunc, VectorSize, {0, 0}, *rtdata, input_buffer, output_buffer, i, color);
-      COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+    while(check_used(*rtdata, no_generations)) {
+      for (int i = 0; i < no_generations; ++i)
+      {
+        renderKernel.Run(renderkernelFunc, VectorSize, {0, 0}, *rtdata, output_buffer, i, color);
+        COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-      // auto select_func = [] __device__(int i, const VectorInterface *arr) { return ((*arr)[i].fDone == true ); };
-      // VectorInterface::select(rtdata->sparse_rays[i], select_func, sel_vector_d, nselected_hd);
-      // COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+        auto select_func = [] __device__(int i, const VectorInterface *arr) { return ((*arr)[i].fDone == true ); };
+        VectorInterface::select(rtdata->sparse_rays[i], select_func, sel_vector_d, nselected_hd);
+        COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-      // printf("nsel e %d\n", *nselected_hd);
+        VectorInterface::release_selected(rtdata->sparse_rays[i], sel_vector_d, nselected_hd);
+        COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-      // VectorInterface::release_selected(rtdata->sparse_rays[i], sel_vector_d, nselected_hd);
-      // COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+        VectorInterface::select_used(rtdata->sparse_rays[i], sel_vector_d, nselected_hd);
+        COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+      }
     }
-
   }
 
   for (int i = 0; i < rtdata->fSize_px*rtdata->fSize_py; i++) {

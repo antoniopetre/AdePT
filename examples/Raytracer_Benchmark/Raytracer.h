@@ -18,7 +18,7 @@
 #include <VecGeom/base/Vector3D.h>
 #include <VecGeom/navigation/NavStateIndex.h>
 
-#ifdef VECGEOM_ENABLE_CUDA
+#ifdef COPCORE_CUDA_COMPILER
 #include <VecGeom/backend/cuda/Interface.h>
 #endif
 
@@ -164,7 +164,7 @@ void PropagateRays(adept::BlockData<Ray_t> *rays, RaytracerData_t &data, unsigne
                    unsigned char *output_buffer);
 
 __host__ __device__
-adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py, int index, int generation);
+adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py, int generation);
 
 } // End namespace Raytracer
 

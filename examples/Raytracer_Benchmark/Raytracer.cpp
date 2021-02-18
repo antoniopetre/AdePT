@@ -89,7 +89,7 @@ void InitializeModel(vecgeom::VPlacedVolume const *world, RaytracerData_t &rtdat
   rtdata.fNrays = rtdata.fSize_px * rtdata.fSize_py;
 }
 
-adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py, int index, int generation)
+adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py, int generation)
 {
   constexpr int kMaxTries = 10;
   constexpr double kPush  = 1.e-8;
@@ -202,7 +202,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
       else {
 
         float ior1 = 1., ior2 = 1.5; // case when the next volume is transparent
-        if (medium_prop_last->material == kRTtransparent) { // case when the last volume is transparent
+        if (medium_prop_last->material == kRTtransparent) { // case when the ray exits the transparent volume
           ior1 = 1.5;
           ior2 = 1.;
         }
@@ -222,6 +222,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
         // Color_t col_reflected = 0, col_refracted = 0;
 
         auto initial_col = ray.fColor;
+        auto initial_int = ray.intensity;
         if (kr < 1) {
           bool totalreflect = false;
           refracted         = ray.Refract(norm, ior1, ior2, totalreflect);
@@ -231,13 +232,11 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
           ray.intensity *= (1-kr);  // Update the intensity of the ray
 
         
-          if (medium_prop_last->material == kRTtransparent) { // case when the next volume is transparent
-            // auto object_color  = rtdata.fBkgColor;
-            // object_color      *= 0.00001;
-            // ray.fColor += object_color;
-            ray.fColor *= 0.1;
-            // printf("aici\n");
-
+          if (medium_prop_last->material == kRTtransparent) { // case when the ray exits the transparent volume
+            float transparency = 0.85;
+            auto object_color  = medium_prop_next->fObjColor;
+            object_color      *= (1 - transparency);
+            ray.fColor        += object_color;
           }
 
           ray.fDir = refracted;
@@ -269,7 +268,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
 
         // Update the reflected ray
         reflected_ray->fDir       = reflected;
-        reflected_ray->intensity *= kr;
+        reflected_ray->intensity  = kr*initial_int;
         reflected_ray->generation = ray.generation;
         reflected_ray->fColor     = initial_col;
         reflected_ray->fDone      = false;
