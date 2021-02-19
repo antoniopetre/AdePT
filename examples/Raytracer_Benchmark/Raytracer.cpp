@@ -99,8 +99,8 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, in
   ray.fPos                               = start;
   ray.fDir = (rtdata.fView == kRTVperspective) ? pos_onscreen - rtdata.fStart : rtdata.fDir;
   ray.fDir.Normalize();
-  ray.fColor = 0xFFFFFFFF; // white
-  // ray.fColor = rtdata.fBkgColor;
+  // ray.fColor = 0xFFFFFFFF; // white
+  ray.fColor = rtdata.fBkgColor;
   if (rtdata.fView == kRTVperspective) {
     ray.fCrtState = rtdata.fVPstate;
     ray.fVolume   = (Ray_t::VPlacedVolumePtr_t)rtdata.fVPstate.Top();
@@ -234,9 +234,26 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
         
           if (medium_prop_last->material == kRTtransparent) { // case when the ray exits the transparent volume
             float transparency = 0.85;
-            auto object_color  = medium_prop_next->fObjColor;
-            object_color      *= (1 - transparency);
-            ray.fColor        += object_color;
+            auto object_color  = rtdata.fBkgColor; //ray.fColor;// medium_prop_next->fObjColor;
+            // object_color      *= (1 - transparency);
+            object_color *= kr;
+
+            auto objcol = rtdata.fBkgColor;
+            objcol *= (1-kr)*0.01;
+
+            ray.fColor += object_color + objcol;
+            // ray.fColor        += object_color;
+
+            // double calf = -rtdata.fSourceDir.Dot(refracted);
+            // object_color.MultiplyLightChannel(1 + 0.5*calf);
+
+            // auto specular_color = rtdata.fBkgColor;
+            // specular_color.MultiplyLightChannel(1. + 0.5 * calf);
+            // auto object_color = medium_prop_next->fObjColor;
+            // object_color.MultiplyLightChannel(1. + 0.5 * calf);
+            // ray.fColor = specular_color + object_color;
+
+
           }
 
           ray.fDir = refracted;
@@ -253,11 +270,13 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
         reflected = ray.Reflect(norm);
         reflected.Normalize();
 
+        // ray.fColor = ( rtdata.fBkgColor * kr + rtdata.fBkgColor * (1 - kr) * 0.15); 
+
         if (ray.intensity < 0.0001) {
             ray.intensity  = 0;
             ray.fDone      = true;
             return;
-          }
+        }
 
         // col_reflected = cast_ray(reflected);
         // ray.fColor = kr * col_reflected + (1 - kr) * col_refracted
