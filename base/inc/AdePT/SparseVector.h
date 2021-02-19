@@ -70,6 +70,7 @@ __device__ inline bool is_used(int index, const SparseVectorInterface<Type> *sve
   return svector->is_used(index);
 }
 
+template<typename Type>
 __device__ void print_mask(unsigned int mask)
 {
   for (int lane = 0; lane < 32; ++lane) {
@@ -107,7 +108,7 @@ __global__ void release_selected_kernel_launcher(SparseVectorInterface<Type> *sv
   unsigned int grid_size =
       min(warpsPerSM * svect->getNumSMs() * 32 / block_size, (*nselected + block_size - 1) / block_size);
   // printf("running release_selected_kernel<<<%d, %d>>>\n", grid_size, block_size);
-  sa_detail::release_selected_kernel<Type><<<grid_size, block_size>>>(svect, selection, nselected);
+  sa_detail::release_selected_kernel<Type><<<32, block_size>>>(svect, selection, nselected);
 }
 
 template <typename Type>

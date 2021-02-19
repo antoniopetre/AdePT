@@ -23,25 +23,25 @@
 #include <cassert>
 #include <cstdio>
 
-__global__ void RenderTile(adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata, int offset_x, int offset_y,
-                           int tile_size_x, int tile_size_y, unsigned char *tile_in, unsigned char *tile_out)
+__global__ void RenderTile(RaytracerData_t rtdata, int offset_x, int offset_y,
+                           int tile_size_x, int tile_size_y, unsigned char *tile_in, unsigned char *tile_out, int generation)
 {
   int local_px = threadIdx.x + blockIdx.x * blockDim.x;
   int local_py = threadIdx.y + blockIdx.y * blockDim.y;
 
   if (local_px >= tile_size_x || local_py >= tile_size_y) return;
 
-  int ray_index   = local_py * tile_size_x + local_px;
   int pixel_index = 4 * (local_py * tile_size_x + local_px);
 
   int global_px = offset_x + local_px;
   int global_py = offset_y + local_py;
 
-  Ray_t *ray = (Ray_t *)(tile_in + ray_index * sizeof(Ray_t));
-  ray->index = ray_index;
+  int ray_index = global_py*tile_size_x + global_px;
 
-  (*rays)[ray_index]         = *ray;
-  adept::Color_t pixel_color = Raytracer::RaytraceOne(rtdata, rays, global_px, global_py, ray->index);
+  if (!(rtdata.sparse_rays)[generation]->is_used(ray_index)) return;
+  Ray_t *ray = &(*rtdata.sparse_rays[generation])[ray_index];
+
+  auto pixel_color = Raytracer::RaytraceOne(rtdata, *ray, global_px, global_py, generation);
 
   tile_out[pixel_index + 0] = pixel_color.fComp.red;
   tile_out[pixel_index + 1] = pixel_color.fComp.green;
@@ -50,8 +50,7 @@ __global__ void RenderTile(adept::BlockData<Ray_t> *rays, RaytracerData_t rtdata
 }
 
 // subdivide image in 16 tiles and launch each tile on a separate CUDA stream
-void RenderTiledImage(adept::BlockData<Ray_t> *rays, cuda::RaytracerData_t *rtdata, NavIndex_t *output_buffer,
-                      int block_size)
+void RenderTiledImage(cuda::RaytracerData_t *rtdata, NavIndex_t *output_buffer, int generation, int block_size)
 {
   cudaStream_t streams[4];
 
@@ -87,8 +86,8 @@ void RenderTiledImage(adept::BlockData<Ray_t> *rays, cuda::RaytracerData_t *rtda
       int offset_x = ix * tile_size_x;
       int offset_y = iy * tile_size_y;
 
-      RenderTile<<<blocks, threads, 0, streams[iy]>>>(rays, *rtdata, offset_x, offset_y, tile_size_x, tile_size_y,
-                                                      tile_device_in[idx], tile_device_out[idx]);
+      RenderTile<<<blocks, threads, 0, streams[iy]>>>(*rtdata, offset_x, offset_y, tile_size_x, tile_size_y,
+                                                      tile_device_in[idx], tile_device_out[idx], generation);
     }
   }
 
@@ -137,7 +136,25 @@ void RenderTiledImage(adept::BlockData<Ray_t> *rays, cuda::RaytracerData_t *rtda
   COPCORE_CUDA_CHECK(cudaGetLastError());
 }
 
-void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata) {
+
+
+// Attach material structure to all logical volumes
+__global__ void AttachRegions(vecgeom::VPlacedVolume *gpu_world, const MyMediumProp *volume_container, int pos)
+{
+  auto lvol = (vecgeom::LogicalVolume *)gpu_world->GetLogicalVolume();
+  // lvol->Print();
+  lvol->SetBasketManagerPtr((void *)&volume_container[pos]);
+
+  const vecgeom::Vector<vecgeom::VPlacedVolume const *> placedvolumes = lvol->GetDaughters();
+
+  for (auto x: placedvolumes) {
+    pos++;
+    AttachRegions<<<1,1>>>((vecgeom::VPlacedVolume *)  x, volume_container, pos);
+  }
+}
+
+
+void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata, const MyMediumProp *volume_container) {
   
   // Load and synchronize the geometry on the GPU
   auto &cudaManager = vecgeom::cxx::CudaManager::Instance();
@@ -153,11 +170,12 @@ void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata) {
   rtdata->fVPstate = vpstate;
   rtdata->fWorld   = gpu_world;
 
+  AttachRegions<<<1,1>>>((vecgeom::VPlacedVolume *)  rtdata->fWorld, volume_container, 0);
 }
 
-int executePipelineGPU(const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[])
+int executePipelineGPU(const MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[])
 {
   int result;
-  result = runSimulation<copcore::BackendType::CUDA>(world, argc, argv);
+  result = runSimulation<copcore::BackendType::CUDA>(volume_container, world, argc, argv);
   return result;
 }

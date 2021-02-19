@@ -89,19 +89,18 @@ void InitializeModel(vecgeom::VPlacedVolume const *world, RaytracerData_t &rtdat
   rtdata.fNrays = rtdata.fSize_px * rtdata.fSize_py;
 }
 
-adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t> *rays, int px, int py, int index)
+adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py, int generation)
 {
   constexpr int kMaxTries = 10;
   constexpr double kPush  = 1.e-8;
-
-  Ray_t ray = (*rays)[index];
 
   vecgeom::Vector3D<double> pos_onscreen = rtdata.fLeftC + rtdata.fScale * (px * rtdata.fRight + py * rtdata.fUp);
   vecgeom::Vector3D<double> start        = (rtdata.fView == kRTVperspective) ? rtdata.fStart : pos_onscreen;
   ray.fPos                               = start;
   ray.fDir = (rtdata.fView == kRTVperspective) ? pos_onscreen - rtdata.fStart : rtdata.fDir;
   ray.fDir.Normalize();
-  ray.fColor = 0xFFFFFFFF; // white
+  // ray.fColor = 0xFFFFFFFF; // white
+  ray.fColor = rtdata.fBkgColor;
   if (rtdata.fView == kRTVperspective) {
     ray.fCrtState = rtdata.fVPstate;
     ray.fVolume   = (Ray_t::VPlacedVolumePtr_t)rtdata.fVPstate.Top();
@@ -109,6 +108,8 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t
     ray.fVolume = LoopNavigator::LocatePointIn(rtdata.fWorld, ray.fPos, ray.fCrtState, true);
   }
   int itry = 0;
+
+  
   while (!ray.fVolume && itry < kMaxTries) {
     auto snext = rtdata.fWorld->DistanceToIn(ray.fPos, ray.fDir);
     ray.fDone  = snext == vecgeom::kInfLength;
@@ -116,6 +117,7 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t
     // Propagate to the world volume (but do not increment the boundary count)
     ray.fPos += (snext + kPush) * ray.fDir;
     ray.fVolume = LoopNavigator::LocatePointIn(rtdata.fWorld, ray.fPos, ray.fCrtState, true);
+
     if (ray.fVolume) {
       ray.fNextState = ray.fCrtState;
       Raytracer::ApplyRTmodel(ray, snext, rtdata);
@@ -124,11 +126,21 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t
   ray.fDone = ray.fVolume == nullptr;
   if (ray.fDone) return ray.fColor;
 
+  
   // Now propagate ray
   while (!ray.fDone) {
+   
     auto nextvol = ray.fVolume;
     double snext = vecgeom::kInfLength;
     int nsmall   = 0;
+
+    // if (generation == 0 && ray.index == 139817) {
+    //   printf("1-fCrtState: ");
+    //   ray.fCrtState.Print();
+    //   printf("1-fNextState: ");
+    //   ray.fNextState.Print();
+    //   ray.fVolume->Print();
+    // }
 
     while (nextvol == ray.fVolume && nsmall < kMaxTries) {
       snext   = LoopNavigator::ComputeStepAndPropagatedState(ray.fPos, ray.fDir, vecgeom::kInfLength, ray.fCrtState,
@@ -137,31 +149,141 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, adept::BlockData<Ray_t
       ray.fPos += (snext + kPush) * ray.fDir;
       nsmall++;
     }
+
+    
     if (nsmall == kMaxTries) {
       // std::cout << "error for ray (" << px << ", " << py << ")\n";
       ray.fDone  = true;
       ray.fColor = 0;
       return ray.fColor;
     }
+
     // Apply the selected RT model
     ray.fNcrossed++;
     ray.fVolume = nextvol;
+
     if (ray.fVolume == nullptr) ray.fDone = true;
+
     if (nextvol) Raytracer::ApplyRTmodel(ray, snext, rtdata);
+
+    
     auto tmpstate  = ray.fCrtState;
     ray.fCrtState  = ray.fNextState;
     ray.fNextState = tmpstate;
-  }
 
+  }
+  
+  ray.fColor *= ray.intensity;
   return ray.fColor;
 }
 
 void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
 {
   int depth = ray.fNextState.GetLevel();
-  if (rtdata.fModel == kRTspecular) { // specular reflection
+
+  auto lastvol = (Ray_t::VPlacedVolumePtr_t)ray.fCrtState.Top();
+  auto nextvol = ray.fVolume;
+
+  // Get material structure for last and next volumes
+  auto medium_prop_last = (MyMediumProp *)lastvol->GetLogicalVolume()->GetBasketManagerPtr();
+  auto medium_prop_next = (MyMediumProp *)nextvol->GetLogicalVolume()->GetBasketManagerPtr();
+
+  if (medium_prop_next->material == kRTtransparent || medium_prop_last->material == kRTtransparent) {
+    bool valid = depth >= rtdata.fVisDepth;
+    if (valid) {
+
+      if (!rtdata.fReflection) {
+        float transparency = 0.85;
+        auto object_color  = medium_prop_next->fObjColor;
+        object_color      *= (1 - transparency);
+        ray.fColor        += object_color;
+      }
+
+      else {
+
+        float ior1 = 1., ior2 = 1.5; // case when the next volume is transparent
+        if (medium_prop_last->material == kRTtransparent) { // case when the ray exits the transparent volume
+          ior1 = 1.5;
+          ior2 = 1.;
+        }
+      
+        vecgeom::Transformation3D m;
+        ray.fNextState.TopMatrix(m);
+        auto localpoint = m.Transform(ray.fPos);
+        vecgeom::Vector3D<double> norm, lnorm;
+        ray.fVolume->GetLogicalVolume()->GetUnplacedVolume()->Normal(localpoint, lnorm);
+        m.InverseTransformDirection(lnorm, norm);
+        // Compute fraction of reflected light
+        float kr = 0;
+        
+        ray.Fresnel(norm, ior1, ior2, kr); // we need to take refraction coeff from geometry
+
+        vecgeom::Vector3D<double> reflected, refracted;
+        // Color_t col_reflected = 0, col_refracted = 0;
+
+        auto initial_col = ray.fColor;
+        auto initial_int = ray.intensity;
+        if (kr < 1) {
+          bool totalreflect = false;
+          refracted         = ray.Refract(norm, ior1, ior2, totalreflect);
+          refracted.Normalize();
+          // col_refracted = cast_ray(refracted);
+
+          ray.intensity *= (1-kr);  // Update the intensity of the ray
+
+        
+          if (medium_prop_last->material == kRTtransparent) { // case when the ray exits the transparent volume
+            float transparency = 0.85;
+            auto object_color  = rtdata.fBkgColor; //medium_prop_next->fObjColor;
+            object_color      *= (1 - transparency);
+            ray.fColor        += object_color;
+          }
+
+          ray.fDir = refracted;
+          
+        }
+        else {
+          // printf("Total reflection\n");
+          ray.intensity = 0;
+        }
+
+        // Update the generation for the refracted ray and add it to the BlockData
+        ray.generation++;
+
+        reflected = ray.Reflect(norm);
+        reflected.Normalize();
+
+        if (ray.intensity < 0.0001) {
+            ray.intensity  = 0;
+            ray.fDone      = true;
+            return;
+          }
+
+        // col_reflected = cast_ray(reflected);
+        // ray.fColor = kr * col_reflected + (1 - kr) * col_refracted
+        // ray.fDone = true;
+        
+        // Reflected ray
+        Ray_t *reflected_ray = rtdata.sparse_rays[ray.generation % 10]->next_free(ray);
+
+        // Update the reflected ray
+        reflected_ray->fDir       = reflected;
+        reflected_ray->intensity  = kr*initial_int;
+        reflected_ray->generation = ray.generation;
+        reflected_ray->fColor     = initial_col;
+        reflected_ray->fDone      = false;
+        
+      
+      }
+    }
+  }
+  else if (medium_prop_next->material == kRTxray) {
+    return;
+  }
+  
+  else if (medium_prop_next->material == kRTspecular) { // specular reflection
     // Calculate normal at the hit point
-    bool valid = ray.fVolume != nullptr && depth >= rtdata.fVisDepth;
+    bool valid = depth >= rtdata.fVisDepth;
     if (valid) {
       vecgeom::Transformation3D m;
       ray.fNextState.TopMatrix(m);
@@ -176,47 +298,21 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
       // calf                   = vecCore::math::Pow(calf, fShininess);
       auto specular_color = rtdata.fBkgColor;
       specular_color.MultiplyLightChannel(1. + 0.5 * calf);
-      auto object_color = rtdata.fObjColor;
+      auto object_color = medium_prop_next->fObjColor;
       object_color.MultiplyLightChannel(1. + 0.5 * calf);
       ray.fColor = specular_color + object_color;
       ray.fDone  = true;
+
+
       // std::cout << "calf = " << calf << "red=" << (int)ray.fColor.fComp.red << " green=" <<
       // (int)ray.fColor.fComp.green
       //          << " blue=" << (int)ray.fColor.fComp.blue << " alpha=" << (int)ray.fColor.fComp.alpha << std::endl;
     }
-  } else if (rtdata.fModel == kRTtransparent) { // everything transparent 100% except volumes at visible depth
-    bool valid = ray.fVolume != nullptr && depth == rtdata.fVisDepth;
-    if (valid) {
-      float transparency = 0.85;
-      auto object_color  = rtdata.fObjColor;
-      object_color *= (1 - transparency);
-      ray.fColor += object_color;
-    }
-  } else if (rtdata.fModel == kRTfresnel) {
-    bool valid = ray.fVolume != nullptr && depth >= rtdata.fVisDepth;
-    if (valid) {
-      vecgeom::Transformation3D m;
-      ray.fNextState.TopMatrix(m);
-      auto localpoint = m.Transform(ray.fPos);
-      vecgeom::Vector3D<double> norm, lnorm;
-      ray.fVolume->GetLogicalVolume()->GetUnplacedVolume()->Normal(localpoint, lnorm);
-      m.InverseTransformDirection(lnorm, norm);
-      // Compute fraction of reflected light
-      float kr = 0;
-      ray.Fresnel(norm, 1.5, 1, kr); // we need to take refraction coeff from geometry
-      vecgeom::Vector3D<double> reflected, refracted;
-      // Color_t col_reflected = 0, col_refracted = 0;
-      if (kr < 1) {
-        bool totalreflect = false;
-        refracted         = ray.Refract(norm, 1.5, 1, totalreflect);
-        // col_refracted = cast_ray(refracted);
-      }
-      reflected = ray.Reflect(norm);
-      // col_reflected = cast_ray(reflected);
-      // ray.fColor = kr * col_reflected + (1 - kr) * col_refracted
-      // ray.fDone = true;
-    }
-  }
+  } 
+
+  
+
+
   if (ray.fVolume == nullptr) ray.fDone = true;
 }
 
@@ -246,13 +342,13 @@ void PropagateRays(int id, adept::BlockData<Ray_t> *rays, const RaytracerData_t 
 
   (*rays)[ray_index] = *ray;
 
-  auto pixel_color = RaytraceOne(rtdata, rays, px, py, ray->index);
+  // auto pixel_color = RaytraceOne(rtdata, rays, px, py, ray->index);
 
-  int pixel_index                = 4 * ray_index;
-  output_buffer[pixel_index + 0] = pixel_color.fComp.red;
-  output_buffer[pixel_index + 1] = pixel_color.fComp.green;
-  output_buffer[pixel_index + 2] = pixel_color.fComp.blue;
-  output_buffer[pixel_index + 3] = 255;
+  // int pixel_index                = 4 * ray_index;
+  // output_buffer[pixel_index + 0] = pixel_color.fComp.red;
+  // output_buffer[pixel_index + 1] = pixel_color.fComp.green;
+  // output_buffer[pixel_index + 2] = pixel_color.fComp.blue;
+  // output_buffer[pixel_index + 3] = 255;
 }
 
 /*
