@@ -99,8 +99,8 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, in
   ray.fPos                               = start;
   ray.fDir = (rtdata.fView == kRTVperspective) ? pos_onscreen - rtdata.fStart : rtdata.fDir;
   ray.fDir.Normalize();
-  // ray.fColor = 0xFFFFFFFF; // white
-  ray.fColor = rtdata.fBkgColor;
+  ray.fColor = 0xFFFFFFFF; // white
+  // ray.fColor = rtdata.fBkgColor;
   if (rtdata.fView == kRTVperspective) {
     ray.fCrtState = rtdata.fVPstate;
     ray.fVolume   = (Ray_t::VPlacedVolumePtr_t)rtdata.fVPstate.Top();
@@ -179,7 +179,6 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, in
 
 void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
 {
-  int depth = ray.fNextState.GetLevel();
 
   auto lastvol = (Ray_t::VPlacedVolumePtr_t)ray.fCrtState.Top();
   auto nextvol = ray.fVolume;
@@ -189,8 +188,6 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
   auto medium_prop_next = (MyMediumProp *)nextvol->GetLogicalVolume()->GetBasketManagerPtr();
 
   if (medium_prop_next->material == kRTtransparent || medium_prop_last->material == kRTtransparent) {
-    bool valid = depth >= rtdata.fVisDepth;
-    if (valid) {
 
       if (!rtdata.fReflection) {
         float transparency = 0.85;
@@ -275,7 +272,6 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
         
       
       }
-    }
   }
   else if (medium_prop_next->material == kRTxray) {
     return;
@@ -283,8 +279,6 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
   
   else if (medium_prop_next->material == kRTspecular) { // specular reflection
     // Calculate normal at the hit point
-    bool valid = depth >= rtdata.fVisDepth;
-    if (valid) {
       vecgeom::Transformation3D m;
       ray.fNextState.TopMatrix(m);
       auto localpoint = m.Transform(ray.fPos);
@@ -307,7 +301,6 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
       // std::cout << "calf = " << calf << "red=" << (int)ray.fColor.fComp.red << " green=" <<
       // (int)ray.fColor.fComp.green
       //          << " blue=" << (int)ray.fColor.fComp.blue << " alpha=" << (int)ray.fColor.fComp.alpha << std::endl;
-    }
   } 
 
   

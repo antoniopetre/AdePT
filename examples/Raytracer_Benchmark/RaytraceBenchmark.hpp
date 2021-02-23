@@ -71,8 +71,8 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
 
   // Light color, object color (no color per volume yet) - in RGBA chars compressed into an unsigned integer
   OPTION_INT(bkgcol, 0xFF000080); // red (keep 80 as alpha channel for correct color blending)
-  OPTION_INT(objcol, 0x0000FF80); // blue
-  OPTION_INT(vdepth, 4);          // visible depth
+  // OPTION_INT(objcol, 0x0000FF80); // blue
+  // OPTION_INT(vdepth, 4);          // visible depth
 
   OPTION_INT(use_tiles, 0);  // run on GPU in tiled mode
   OPTION_INT(block_size, 8); // run on GPU in tiled mode
@@ -88,8 +88,8 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   rtdata->fSize_px    = px;
   rtdata->fSize_py    = py;
   rtdata->fBkgColor   = bkgcol;
-  rtdata->fObjColor   = objcol;
-  rtdata->fVisDepth   = vdepth;
+  // rtdata->fObjColor   = objcol;
+  // rtdata->fVisDepth   = vdepth;
   rtdata->fReflection = reflection;
 
   Raytracer::InitializeModel((Raytracer::VPlacedVolumePtr_t)world, *rtdata);
