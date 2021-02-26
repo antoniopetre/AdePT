@@ -217,10 +217,12 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
     ray.Fresnel(norm, ior1, ior2, kr); // we need to take refraction coeff from geometry
 
     vecgeom::Vector3D<double> reflected, refracted;
-    // Color_t col_reflected = 0, col_refracted = 0;
 
     auto initial_col = ray.fColor;
     auto initial_int = ray.intensity;
+
+    adept::Color_t col_refracted = 0, col_reflected = 0;
+
     if (kr < 1) {
       bool totalreflect = false;
       refracted         = ray.Refract(norm, ior1, ior2, totalreflect);
@@ -229,12 +231,10 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
 
       ray.intensity *= (1-kr);  // Update the intensity of the ray
 
-        
       if (medium_prop_last->material == kRTtransparent) { // case when the ray exits the transparent volume
         float transparency = 0.85;
-        auto object_color  = rtdata.fBkgColor; //medium_prop_next->fObjColor;
-        object_color      *= (1 - transparency);
-        ray.fColor        += object_color;
+        col_refracted  = rtdata.fBkgColor;
+        col_refracted      *= (1 - transparency);
       }
 
       ray.fDir = refracted;
@@ -251,25 +251,35 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
       reflected = ray.Reflect(norm);
       reflected.Normalize();
 
-      if (ray.intensity < 0.0001) {
+      if (ray.intensity < 0.01) {
         ray.intensity  = 0;
         ray.fDone      = true;
-        return;
       }
 
+
+
     // col_reflected = cast_ray(reflected);
-    // ray.fColor = kr * col_reflected + (1 - kr) * col_refracted
+    
     // ray.fDone = true;
         
-    // Reflected ray
-    Ray_t *reflected_ray = rtdata.sparse_rays[ray.generation % 10]->next_free(ray);
+    
 
     // Update the reflected ray
-    reflected_ray->fDir       = reflected;
-    reflected_ray->intensity  = kr*initial_int;
-    reflected_ray->generation = ray.generation;
-    reflected_ray->fColor     = initial_col;
-    reflected_ray->fDone      = false;
+    if (kr*initial_int > 0.01) {
+      // Reflected ray
+      Ray_t *reflected_ray = rtdata.sparse_rays[ray.generation % 10]->next_free(ray);
+      reflected_ray->fDir       = reflected;
+      reflected_ray->intensity  = kr*initial_int;
+      reflected_ray->fColor     = initial_col;
+      reflected_ray->fDone      = false;
+
+      col_reflected = reflected_ray->fColor;
+    }
+
+    col_reflected *= kr;
+    col_refracted *= (1-kr);
+
+    ray.fColor = col_reflected + col_refracted;
         
   }
   else if (medium_prop_next->material == kRTxray) {
