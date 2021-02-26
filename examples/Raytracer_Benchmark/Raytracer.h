@@ -123,9 +123,9 @@ struct RaytracerData_t {
   int fNrays               = 0;               ///< Number of rays left to propagate
   int fSize_px             = 1024;            ///< Image pixel size in x
   int fSize_py             = 1024;            ///< Image pixel size in y
-  int fVisDepth            = 1;               ///< Visible geometry depth
+  // int fVisDepth            = 1;               ///< Visible geometry depth
   adept::Color_t fBkgColor = 0xFFFFFFFF;      ///< Light color
-  adept::Color_t fObjColor = 0x0000FFFF;      ///< Object color
+  // adept::Color_t fObjColor = 0x0000FFFF;      ///< Object color
   ERTmodel fModel          = kRTxray;         ///< Selected RT model
   ERTView fView            = kRTVperspective; ///< View type
   bool fReflection         = false;           ///< Reflection model

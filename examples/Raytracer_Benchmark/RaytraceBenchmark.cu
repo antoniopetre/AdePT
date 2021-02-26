@@ -22,6 +22,7 @@
 
 #include <cassert>
 #include <cstdio>
+#include <vector>
 
 __global__ void RenderTile(RaytracerData_t rtdata, int offset_x, int offset_y,
                            int tile_size_x, int tile_size_y, unsigned char *tile_in, unsigned char *tile_out, int generation)
@@ -136,20 +137,38 @@ void RenderTiledImage(cuda::RaytracerData_t *rtdata, NavIndex_t *output_buffer, 
   COPCORE_CUDA_CHECK(cudaGetLastError());
 }
 
-
-
-// Attach material structure to all logical volumes
-__global__ void AttachRegions(vecgeom::VPlacedVolume *gpu_world, const MyMediumProp *volume_container, int pos)
+__global__ void getAllLogicalVolumes(vecgeom::VPlacedVolume *currentVolume, vecgeom::Vector<vecgeom::LogicalVolume *> *container)
 {
-  auto lvol = (vecgeom::LogicalVolume *)gpu_world->GetLogicalVolume();
-  // lvol->Print();
-  lvol->SetBasketManagerPtr((void *)&volume_container[pos]);
+  
+  auto lvol = (vecgeom::LogicalVolume *)currentVolume->GetLogicalVolume();
+  bool cond = true;
+
+  for (auto it = container->begin(); it != container->end(); it++) {
+    if (lvol == *it)
+      cond = false;
+  }
+
+  if (cond) {
+    container->reserve(1*sizeof(vecgeom::LogicalVolume *));
+    container->push_back(lvol);
+  }
 
   const vecgeom::Vector<vecgeom::VPlacedVolume const *> placedvolumes = lvol->GetDaughters();
 
-  for (auto x: placedvolumes) {
-    pos++;
-    AttachRegions<<<1,1>>>((vecgeom::VPlacedVolume *)  x, volume_container, pos);
+  for (auto crt: placedvolumes) {
+    getAllLogicalVolumes<<<1,1>>>((vecgeom::VPlacedVolume *)  crt, container);
+  }
+}
+
+
+// Attach material structure to all logical volumes
+__global__ void AttachRegions(const MyMediumProp *volume_container, vecgeom::Vector<vecgeom::LogicalVolume *> *container)
+{
+  int i = 0;
+  for (auto x: *container) {
+    // x->Print();
+    x->SetBasketManagerPtr((void *)&volume_container[i]);
+    i++;
   }
 }
 
@@ -170,7 +189,14 @@ void initiliazeCudaWorld(cuda::RaytracerData_t *rtdata, const MyMediumProp *volu
   rtdata->fVPstate = vpstate;
   rtdata->fWorld   = gpu_world;
 
-  AttachRegions<<<1,1>>>((vecgeom::VPlacedVolume *)  rtdata->fWorld, volume_container, 0);
+  vecgeom::Vector<vecgeom::LogicalVolume *> *container;
+  cudaMallocManaged(&container, sizeof(vecgeom::Vector<vecgeom::LogicalVolume *>));
+
+  getAllLogicalVolumes<<<1,1>>>((vecgeom::VPlacedVolume *)gpu_world, container);
+
+  cudaDeviceSynchronize();
+
+  AttachRegions<<<1,1>>>(volume_container, container);
 }
 
 int executePipelineGPU(const MyMediumProp *volume_container, const vecgeom::cxx::VPlacedVolume *world, int argc, char *argv[])

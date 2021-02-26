@@ -10,6 +10,7 @@
 
 #include "Raytracer.h"
 #include "RaytraceBenchmark.hpp"
+#include "Material.h"
 #include <vector>
 
 #include <CopCore/Global.h>
@@ -65,7 +66,7 @@ int main(int argc, char *argv[])
   if (!world) return 3;
 
   auto ierr = 0;
-  const int maxno_volumes = 10;
+  const int maxno_volumes = 1000;
 
   // Allocate material structure
   static MyMediumProp *volume_container;
@@ -74,30 +75,7 @@ int main(int argc, char *argv[])
   std::vector<vecgeom::LogicalVolume *> logicalvolumes;
   vecgeom::GeoManager::Instance().GetAllLogicalVolumes(logicalvolumes);
 
-  int i = 0;
-
-  // Fill material structure 
-  for (auto lvol : logicalvolumes) {
-      // lvol->Print();
-      if (!strcmp(lvol->GetName(), "World")) {
-        volume_container[i].material = kRTxray;
-        volume_container[i].fObjColor = 0x0000FF80;
-      }
-
-      else if (!strcmp(lvol->GetName(), "SphVol")) {
-        volume_container[i].material = kRTtransparent;
-        volume_container[i].fObjColor = 0x0000FF80;
-      }
-      
-      else if (!strcmp(lvol->GetName(), "BoxVol"))  {
-        volume_container[i].material = kRTspecular;
-        volume_container[i].fObjColor = 0x0000FF80;
-      }
-      
-      if (!on_gpu)
-        lvol->SetBasketManagerPtr(&volume_container[i]);
-      i++;
-  }
+  getMaterialStruct(volume_container, logicalvolumes, on_gpu);
 
   if (on_gpu) {
     auto volume_container_cuda = reinterpret_cast<cuda::MyMediumProp *>(volume_container);

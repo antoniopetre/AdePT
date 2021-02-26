@@ -25,8 +25,7 @@ __host__ __device__ void generateRays(int id, const RaytracerData_t &rtdata, Nav
 COPCORE_CALLABLE_FUNC(generateRays)
 
 
-__host__ __device__
-void renderKernels(int id, const RaytracerData_t &rtdata, NavIndex_t *output_buffer, int generation, adept::Color_t *color)
+__host__ __device__ void renderKernels(int id, const RaytracerData_t &rtdata, int generation, adept::Color_t *color)
 {
   // Propagate all rays and write out the image on the backend
   // size_t n10  = 0.1 * rtdata.fNrays;
@@ -47,8 +46,7 @@ void renderKernels(int id, const RaytracerData_t &rtdata, NavIndex_t *output_buf
 
   auto pixel_color = Raytracer::RaytraceOne(rtdata, *ray, px, py, generation);
 
-  int pixel_index = ray_index;
-  color[pixel_index] += pixel_color;  
+  color[ray_index] += pixel_color;
 }
 COPCORE_CALLABLE_FUNC(renderKernels)
 

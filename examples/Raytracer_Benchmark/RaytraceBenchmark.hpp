@@ -181,10 +181,10 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
     RenderTiledImage((RaytracerData_t *)rtdata, output_buffer, 0, block_size);
   } else {
     Launcher_t renderKernel(stream);
-    // while(check_used(*rtdata, no_generations)) {
+    while(check_used(*rtdata, no_generations)) {
       for (int i = 0; i < no_generations; ++i)
       {
-        renderKernel.Run(renderkernelFunc, VectorSize, {0, 0}, *rtdata, output_buffer, i, color);
+        renderKernel.Run(renderkernelFunc, VectorSize, {0, 0}, *rtdata, i, color);
         COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
         auto select_func = [] __device__(int i, const VectorInterface *arr) { return ((*arr)[i].fDone == true ); };
@@ -197,14 +197,14 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
         VectorInterface::select_used(rtdata->sparse_rays[i], sel_vector_d, nselected_hd);
         COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
       }
-    // }
+    }
   }
 
   for (int i = 0; i < rtdata->fSize_px*rtdata->fSize_py; i++) {
     int pixel_index = 4*i;
-    output_buffer[pixel_index + 0] += color[i].fComp.red;
-    output_buffer[pixel_index + 1] += color[i].fComp.green;
-    output_buffer[pixel_index + 2] += color[i].fComp.blue;
+    output_buffer[pixel_index + 0] = color[i].fComp.red;
+    output_buffer[pixel_index + 1] = color[i].fComp.green;
+    output_buffer[pixel_index + 2] = color[i].fComp.blue;
     output_buffer[pixel_index + 3] = 255;
   }
 
