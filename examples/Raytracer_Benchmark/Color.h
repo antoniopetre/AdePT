@@ -121,6 +121,16 @@ union Color_t {
     if (hue > 360) hue = hue - 360;
   }
 
+  __host__ __device__ void print()
+  {
+    printf("Red: %d. Green: %d, Blue: %d, Alpha: %d\n", fComp.red, fComp.green, fComp.blue, fComp.alpha);
+  }
+
+   __host__ __device__ void print() const
+  {
+    printf("Red: %d. Green: %d, Blue: %d, Alpha: %d\n", fComp.red, fComp.green, fComp.blue, fComp.alpha);
+  }
+
   __host__ __device__ void SetHLS(float hue, float light, float satur)
   {
     float rh, rl, rs, rm1, rm2;
@@ -173,6 +183,8 @@ __host__ __device__ __forceinline__ Color_t operator+(Color_t const &left, Color
   color += right;
   return color;
 }
+
+
 } // End namespace adept
 
 #endif // RT_BENCHMARK_COLOR_H_

@@ -101,6 +101,7 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, in
   ray.fDir.Normalize();
   ray.fColor = 0xFFFFFFFF; // white
   // ray.fColor = rtdata.fBkgColor;
+
   if (rtdata.fView == kRTVperspective) {
     ray.fCrtState = rtdata.fVPstate;
     ray.fVolume   = (Ray_t::VPlacedVolumePtr_t)rtdata.fVPstate.Top();
@@ -172,8 +173,16 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, in
     ray.fNextState = tmpstate;
 
   }
+
+
+  int x = ray.fColor.fComp.alpha;
   
   ray.fColor *= ray.intensity;
+
+  // if (ray.fColor.fComp.alpha == 0) {
+  //   printf("x = %d si ray.intensity = %f\n", x, ray.intensity);
+  // } 
+
   return ray.fColor;
 }
 
@@ -199,10 +208,12 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
 
   else if ((medium_prop_next->material == kRTtransparent || medium_prop_last->material == kRTtransparent) && rtdata.fReflection) {
 
-    float ior1 = 1., ior2 = 1.5; // case when the next volume is transparent
+    float ior1 = 1.5, ior2 = 1.; // case when the next volume is transparent
     if (medium_prop_last->material == kRTtransparent) { // case when the ray exits the transparent volume
-      ior1 = 1.5;
-      ior2 = 1.;
+      // swap indices of refraction
+      float copy = ior1;
+      ior1 = ior2;
+      ior2 = copy;
     }
       
     vecgeom::Transformation3D m;
@@ -210,6 +221,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
     auto localpoint = m.Transform(ray.fPos);
     vecgeom::Vector3D<double> norm, lnorm;
     ray.fVolume->GetLogicalVolume()->GetUnplacedVolume()->Normal(localpoint, lnorm);
+
     m.InverseTransformDirection(lnorm, norm);
     // Compute fraction of reflected light
     float kr = 0;
@@ -232,58 +244,68 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
       ray.intensity *= (1-kr);  // Update the intensity of the ray
 
       if (medium_prop_last->material == kRTtransparent) { // case when the ray exits the transparent volume
-        float transparency = 0.85;
-        col_refracted  = rtdata.fBkgColor;
-        col_refracted      *= (1 - transparency);
+        // ray.fColor = rtdata.fBkgColor;
+        // ray.fColor = 0xDCDCDCFF;
+        ray.fColor *= 0.015;
       }
 
       ray.fDir = refracted;
+      col_refracted = ray.fColor;
+      // ray.fColor *= 0.5;
+      // if (col_refracted.fComp.red == 0) {
+      //   col_refracted.print();
+      // }
           
-      }
-      else {
-        // printf("Total reflection\n");
-        ray.intensity = 0;
-      }
+    }
+    else {
+      // printf("Total reflection\n");
+      // ray.intensity = 0;
+      col_refracted = 0;
+      // printf("ray.index = %d\n", ray.index);
+    }
       
-      // Update the generation for the refracted ray and add it to the BlockData
-      ray.generation++;
+    // Update the generation for the refracted ray and add it to the BlockData
+    ray.generation++;    
 
-      reflected = ray.Reflect(norm);
-      reflected.Normalize();
+    reflected = ray.Reflect(norm);
+    reflected.Normalize();
 
-      if (ray.intensity < 0.01) {
-        ray.intensity  = 0;
-        ray.fDone      = true;
-      }
-
-
-
-    // col_reflected = cast_ray(reflected);
-    
-    // ray.fDone = true;
-        
-    
-
-    // Update the reflected ray
-    if (kr*initial_int > 0.01) {
-      // Reflected ray
-      Ray_t *reflected_ray = rtdata.sparse_rays[ray.generation % 10]->next_free(ray);
-      reflected_ray->fDir       = reflected;
-      reflected_ray->intensity  = kr*initial_int;
-      reflected_ray->fColor     = initial_col;
-      reflected_ray->fDone      = false;
-
-      col_reflected = reflected_ray->fColor;
+    if (ray.intensity < 0.1) {
+      ray.fDone      = true;
+      col_refracted = 0;
     }
 
-    col_reflected *= kr;
-    col_refracted *= (1-kr);
+    // col_reflected = cast_ray(reflected);
+            
+    // Update the reflected ray
+    if (kr*initial_int > 0.1) {
+      // Reflected ray
+      if (rtdata.sparse_rays[ray.generation % 10]->size() < (1<<20)) {
+        Ray_t *reflected_ray = rtdata.sparse_rays[ray.generation % 10]->next_free(ray);
+        reflected_ray->fDir       = reflected;
+        reflected_ray->intensity  = kr*initial_int;
+        reflected_ray->fColor     = initial_col;
+        reflected_ray->fColor     *= kr;
+        reflected_ray->fDone      = false;
 
-    ray.fColor = col_reflected + col_refracted;
+        col_reflected = reflected_ray->fColor;
+      }      
+    }
+
+    // col_reflected *= kr;
+    // col_refracted *= (1-kr);
+
+    // col_refracted.print();
+    ray.fColor += col_refracted + col_reflected;
+
+    // if (ray.fColor.fComp.red == 0 || ray.fColor.fComp.alpha == 0)
+    // {
+    //   printf("`123ray.index = %d\n", ray.index);
+    // }
         
   }
   else if (medium_prop_next->material == kRTxray) {
-    return;
+    // return;
   }
   
   else if (medium_prop_next->material == kRTspecular) { // specular reflection
@@ -312,6 +334,11 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
       //          << " blue=" << (int)ray.fColor.fComp.blue << " alpha=" << (int)ray.fColor.fComp.alpha << std::endl;
   } 
 
+
+  if (ray.fColor.fComp.red == 0)
+    {
+      printf("`123ray.index = %d\n", ray.index);
+    }
   if (ray.fVolume == nullptr) ray.fDone = true;
 }
 
