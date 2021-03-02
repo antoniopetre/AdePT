@@ -281,7 +281,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
     // col_reflected *= kr;
     col_refracted *= (1-kr);
 
-    ray.fColor = col_refracted;
+    ray.fColor = col_reflected + col_refracted;
         
   }
   else if (medium_prop_next->material == kRTxray) {
