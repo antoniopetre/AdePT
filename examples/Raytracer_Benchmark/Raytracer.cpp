@@ -179,10 +179,6 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, in
   
   ray.fColor *= ray.intensity;
 
-  // if (ray.fColor.fComp.alpha == 0) {
-  //   printf("x = %d si ray.intensity = %f\n", x, ray.intensity);
-  // } 
-
   return ray.fColor;
 }
 
@@ -239,29 +235,21 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
       bool totalreflect = false;
       refracted         = ray.Refract(norm, ior1, ior2, totalreflect);
       refracted.Normalize();
-      // col_refracted = cast_ray(refracted);
 
       ray.intensity *= (1-kr);  // Update the intensity of the ray
 
       if (medium_prop_last->material == kRTtransparent) { // case when the ray exits the transparent volume
-        // ray.fColor = rtdata.fBkgColor;
-        // ray.fColor = 0xDCDCDCFF;
-        ray.fColor *= 0.015;
+        ray.fColor = 0xDCDCDCFF;
+        ray.fColor *= 0.85;
       }
 
       ray.fDir = refracted;
       col_refracted = ray.fColor;
-      // ray.fColor *= 0.5;
-      // if (col_refracted.fComp.red == 0) {
-      //   col_refracted.print();
-      // }
           
     }
     else {
       // printf("Total reflection\n");
-      // ray.intensity = 0;
-      col_refracted = 0;
-      // printf("ray.index = %d\n", ray.index);
+      // ray.fDone = true;
     }
       
     // Update the generation for the refracted ray and add it to the BlockData
@@ -270,12 +258,10 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
     reflected = ray.Reflect(norm);
     reflected.Normalize();
 
-    if (ray.intensity < 0.1) {
+    if (ray.intensity <= 0.1) {
       ray.fDone      = true;
       col_refracted = 0;
     }
-
-    // col_reflected = cast_ray(reflected);
             
     // Update the reflected ray
     if (kr*initial_int > 0.1) {
@@ -285,7 +271,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
         reflected_ray->fDir       = reflected;
         reflected_ray->intensity  = kr*initial_int;
         reflected_ray->fColor     = initial_col;
-        reflected_ray->fColor     *= kr;
+        // reflected_ray->fColor     *= kr;
         reflected_ray->fDone      = false;
 
         col_reflected = reflected_ray->fColor;
@@ -293,15 +279,9 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
     }
 
     // col_reflected *= kr;
-    // col_refracted *= (1-kr);
+    col_refracted *= (1-kr);
 
-    // col_refracted.print();
-    ray.fColor += col_refracted + col_reflected;
-
-    // if (ray.fColor.fComp.red == 0 || ray.fColor.fComp.alpha == 0)
-    // {
-    //   printf("`123ray.index = %d\n", ray.index);
-    // }
+    ray.fColor = col_refracted;
         
   }
   else if (medium_prop_next->material == kRTxray) {
@@ -334,11 +314,6 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
       //          << " blue=" << (int)ray.fColor.fComp.blue << " alpha=" << (int)ray.fColor.fComp.alpha << std::endl;
   } 
 
-
-  if (ray.fColor.fComp.red == 0)
-    {
-      printf("`123ray.index = %d\n", ray.index);
-    }
   if (ray.fVolume == nullptr) ray.fDone = true;
 }
 

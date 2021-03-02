@@ -156,7 +156,7 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
 
   for (int i = 0; i < rtdata->fSize_px*rtdata->fSize_py; i++) {
     color[i] = 0;
-    // color[i].fComp.alpha = 255;
+    // color[i].fComp.alpha = 127;
   }
 
   // Construct rays in place
@@ -188,49 +188,51 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
         renderKernel.Run(renderkernelFunc, VectorSize, {0, 0}, *rtdata, i, color);
         COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-        // auto select_func = [] __device__(int i, const VectorInterface *arr) { return ((*arr)[i].fDone == true ); };
-        // VectorInterface::select(rtdata->sparse_rays[i], select_func, sel_vector_d, nselected_hd);
-        // COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+        auto select_func = [] __device__(int i, const VectorInterface *arr) { return ((*arr)[i].fDone == true ); };
+        VectorInterface::select(rtdata->sparse_rays[i], select_func, sel_vector_d, nselected_hd);
+        COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-        // VectorInterface::release_selected(rtdata->sparse_rays[i], sel_vector_d, nselected_hd);
-        // COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+        VectorInterface::release_selected(rtdata->sparse_rays[i], sel_vector_d, nselected_hd);
+        COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-        // VectorInterface::select_used(rtdata->sparse_rays[i], sel_vector_d, nselected_hd);
-        // COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
+        VectorInterface::select_used(rtdata->sparse_rays[i], sel_vector_d, nselected_hd);
+        COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
-          for (int i = 0; i < rtdata->fSize_px*rtdata->fSize_py; i++) {
-
-            // if (color[i].fComp.red > 0 && color[i].fComp.red == 255) {
-            //   printf("i = %d\n", i);
-            // }
-            
-            int pixel_index = 4*i;
-            output_buffer[pixel_index + 0] = color[i].fComp.red;
-            output_buffer[pixel_index + 1] = color[i].fComp.green;
-            output_buffer[pixel_index + 2] = color[i].fComp.blue;
-            output_buffer[pixel_index + 3] = 255;
-
-            if (i == 179753) {
-              // printf("in HPP\n");
-              // printf("red = %d, green = %d, blue = %d\n", color[i].fComp.red, color[i].fComp.green, color[i].fComp.blue);
-              // color[i].print();
-              // printf("re1 = %d, gree2 = %d, blu3 = %d\n", output_buffer[pixel_index + 0], output_buffer[pixel_index + 1], output_buffer[pixel_index + 2]);
-
-            }
-          }
+       
 
         printf("-----------------------------------------\n");
       }
     // }
   }
 
-  // for (int i = 0; i < rtdata->fSize_px*rtdata->fSize_py; i++) {
-  //   int pixel_index = 4*i;
-  //   output_buffer[pixel_index + 0] = color[i].fComp.red;
-  //   output_buffer[pixel_index + 1] = color[i].fComp.green;
-  //   output_buffer[pixel_index + 2] = color[i].fComp.blue;
-  //   output_buffer[pixel_index + 3] = 255;
-  // }
+  for (int i = 0; i < rtdata->fSize_px*rtdata->fSize_py; i++) {
+    int pixel_index = 4*i;
+    output_buffer[pixel_index + 0] = color[i].fComp.red;
+    output_buffer[pixel_index + 1] = color[i].fComp.green;
+    output_buffer[pixel_index + 2] = color[i].fComp.blue;
+    output_buffer[pixel_index + 3] = 255;
+  }
+
+     // for (int i = 0; i < rtdata->fSize_px*rtdata->fSize_py; i++) {
+
+     //        // if (color[i].fComp.red > 0 && color[i].fComp.red == 255) {
+     //        //   printf("i = %d\n", i);
+     //        // }
+            
+     //        int pixel_index = 4*i;
+     //        output_buffer[pixel_index + 0] = color[i].fComp.red;
+     //        output_buffer[pixel_index + 1] = color[i].fComp.green;
+     //        output_buffer[pixel_index + 2] = color[i].fComp.blue;
+     //        output_buffer[pixel_index + 3] = 255;
+
+     //        if (i == 179753) {
+     //          // printf("in HPP\n");
+     //          // printf("red = %d, green = %d, blue = %d\n", color[i].fComp.red, color[i].fComp.green, color[i].fComp.blue);
+     //          // color[i].print();
+     //          // printf("re1 = %d, gree2 = %d, blu3 = %d\n", output_buffer[pixel_index + 0], output_buffer[pixel_index + 1], output_buffer[pixel_index + 2]);
+
+     //        }
+     //      }
 
   // Print basic information about containers
   for (int i = 0; i < no_generations; ++i)
