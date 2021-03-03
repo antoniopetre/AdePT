@@ -59,7 +59,7 @@ struct Ray_t {
   __host__ __device__
   vecgeom::Vector3D<double> Reflect(vecgeom::Vector3D<double> const &normal)
   {
-    return (fDir - 2.0 * fDir.Dot(normal) * normal);
+    return (fDir - 2 * fDir.Dot(normal) * normal);
   }
 
   __host__ __device__
@@ -70,7 +70,7 @@ struct Ray_t {
     vecgeom::Vector3D<double> n = (cosi < 0) ? normal : -normal;
     cosi                        = vecCore::math::Abs(cosi);
     float eta                   = ior1 / ior2;
-    float k                     = 1.0 - eta * eta * (1 - cosi * cosi);
+    float k                     = 1 - eta * eta * (1 - cosi * cosi);
     vecgeom::Vector3D<double> refracted;
     if (k < 0) {
       totalreflect = true;

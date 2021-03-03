@@ -18,6 +18,7 @@ __host__ __device__ void generateRays(int id, const RaytracerData_t &rtdata, Nav
   Ray_t *ray = (Ray_t *)(input_buffer + id * sizeof(Ray_t));
   ray->index      = ray_index;
   ray->generation = 0;
+  ray->intensity  = 1.;
 
   rtdata.sparse_rays[0]->next_free(*ray);
 }
@@ -44,75 +45,9 @@ __host__ __device__ void renderKernels(int id, const RaytracerData_t &rtdata, in
 
   Ray_t *ray = &(*rtdata.sparse_rays[generation])[id];
 
-  auto pixel_color = Raytracer::RaytraceOne(rtdata, *ray, px, py, generation);
-
-
-  // if (ray_index == 61163)
-  // {
-  //   printf("before white\n");
-  //   pixel_color.print();
-  //   color[ray_index].print();
-
-  //   adept::Color_t x = 0;
-  //   adept::Color_t y = x + pixel_color;
-  //   y.print();
-    
-  // }
-
-  // if (ray_index == 197744) {
-  //   printf("before blue\n");
-  //   pixel_color.print();
-  //   color[ray_index].print();
-
-  //   adept::Color_t x = 0;
-  //   adept::Color_t y = x + pixel_color;
-  //   y.print();
-
-  // }
-
-
-  if (ray_index == 179753) {
-    // pixel_color.fComp.red = 254;
-    // pixel_color.fComp.blue = 254;
-    // pixel_color.fComp.green = 254;
-
-    printf("before black\n");
-    pixel_color.print();
-    color[ray_index].print();
-
-    adept::Color_t x = 0;
-    adept::Color_t y = x + pixel_color;
-    y.print();
-  }
-  
-
+  auto pixel_color = Raytracer::RaytraceOne(rtdata, *ray, px, py, generation);  
   color[ray_index] += pixel_color;
-  
 
-  if (ray_index == 179753) {
-    printf("after black\n");
-    color[ray_index].print();
-
-    adept::Color_t medeea = 0;
-    // medeea.print();
-    medeea = rtdata.fBkgColor;
-    medeea.fComp.alpha = 0;
-    medeea.print();
-
-    adept::Color_t x = 0;
-    x.fComp.alpha = 255;
-    x += medeea;
-    x.print();
-  }
-  // if (ray_index == 197744) {
-  //   printf("after blue\n");
-  //   color[ray_index].print();
-  // }
-  // if (ray_index == 61163) {
-  //   printf("after white\n");
-  //   color[ray_index].print();
-  // }
-  
 }
 COPCORE_CALLABLE_FUNC(renderKernels)
 
