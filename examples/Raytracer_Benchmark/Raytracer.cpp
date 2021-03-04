@@ -225,13 +225,14 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
 
     adept::Color_t col_refracted = 0, col_reflected = 0;
 
+    ray.intensity *= (1-kr);  // Update the intensity of the ray
+
     if (kr < 1) {
 
       bool totalreflect = false;
       refracted         = ray.Refract(norm, ior1, ior2, totalreflect);
       refracted.Normalize();
 
-      ray.intensity *= (1-kr);  // Update the intensity of the ray
       ray.fColor = 0xDCDCDCFF;
 
       if (medium_prop_last->material == kRTtransparent) { // case when the ray exits the transparent volume
@@ -253,10 +254,10 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
     reflected = ray.Reflect(norm);
     reflected.Normalize();
 
-    if (ray.intensity < 0.1) {
-      ray.fDone      = true;
-      col_refracted = 0;
-    }
+    // if (ray.intensity < 0.1) {
+    //   ray.fDone      = true;
+    //   col_refracted = 0;
+    // }
             
     // Update the reflected ray
     if (kr*initial_int > 0.1) {
