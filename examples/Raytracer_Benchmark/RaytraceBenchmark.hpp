@@ -98,7 +98,7 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
 
   rtdata->Print();
 
-  constexpr int VectorSize = 1 << 20;
+  constexpr int VectorSize = 1 << 22;
 
   using RayBlock     = adept::BlockData<Ray_t>;
   using RayAllocator = copcore::VariableSizeObjAllocator<RayBlock, backend>;
@@ -143,7 +143,6 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   printf("=== Allocating %.3f MB of ray data on the %s\n", (float)rtdata->fNrays * raysize / 1048576,
          copcore::BackendName(backend));
 
-
   copcore::Allocator<NavIndex_t, backend> charAlloc;
   NavIndex_t *input_buffer = charAlloc.allocate(rtdata->fNrays * raysize * sizeof(NavIndex_t));
 
@@ -182,7 +181,7 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
     RenderTiledImage((RaytracerData_t *)rtdata, output_buffer, 0, block_size);
   } else {
     Launcher_t renderKernel(stream);
-    // while(check_used(*rtdata, no_generations)) {
+    while(check_used(*rtdata, no_generations)) {
       for (int i = 0; i < no_generations; ++i)
       {
         renderKernel.Run(renderkernelFunc, VectorSize, {0, 0}, *rtdata, i, color);
@@ -197,11 +196,10 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
 
         VectorInterface::select_used(rtdata->sparse_rays[i], sel_vector_d, nselected_hd);
         COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
-
        
       }
       printf("-----------------------------------------\n");
-    // }
+    }
   }
 
   for (int i = 0; i < rtdata->fSize_px*rtdata->fSize_py; i++) {
@@ -222,6 +220,10 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   // Write the output
   write_ppm("output.ppm", output_buffer, rtdata->fSize_px, rtdata->fSize_py);
 
+  for (int i = 0; i < no_generations; ++i)
+    COPCORE_CUDA_CHECK(cudaFree(rtdata->sparse_rays[i]));
   
+  COPCORE_CUDA_CHECK(cudaFree(rtdata->sparse_rays));
+
   return 0;
 }

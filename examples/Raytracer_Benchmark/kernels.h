@@ -51,7 +51,7 @@ __host__ __device__ void renderKernels(int id, const RaytracerData_t &rtdata, in
 }
 COPCORE_CALLABLE_FUNC(renderKernels)
 
-__host__ __device__ void print_vector(adept::SparseVector<Ray_t, 1<<20> *vect)
+__host__ __device__ void print_vector(adept::SparseVector<Ray_t, 1<<22> *vect)
 {
   printf("=== vect: fNshared=%lu/%lu fNused=%lu fNbooked=%lu - shared=%.1f%% sparsity=%.1f%%\n", vect->size(),
          vect->capacity(), vect->size_used(), vect->size_booked(), 100. * vect->get_shared_fraction(),
@@ -62,7 +62,7 @@ __host__ __device__ void print_vector(adept::SparseVector<Ray_t, 1<<20> *vect)
 __host__ __device__ bool check_used(const RaytracerData_t &rtdata, int no_generations)
 {
   
-  adept::SparseVector<Ray_t, 1<<20> **rays_containers = rtdata.sparse_rays;
+  auto rays_containers = rtdata.sparse_rays;
 
   for (int i = 0; i < no_generations; ++i) {
     if (rays_containers[i]->size_used() > 0)

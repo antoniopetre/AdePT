@@ -166,19 +166,14 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, in
     if (ray.fVolume == nullptr) ray.fDone = true;
 
     if (nextvol) Raytracer::ApplyRTmodel(ray, snext, rtdata);
-
     
     auto tmpstate  = ray.fCrtState;
     ray.fCrtState  = ray.fNextState;
     ray.fNextState = tmpstate;
 
   }
-
-
-  int x = ray.fColor.fComp.alpha;
   
-  ray.fColor *= ray.intensity;
-
+  // ray.fColor *= ray.intensity;  // TODO: daca adaug, poza cpu != gpu
   return ray.fColor;
 }
 
@@ -204,7 +199,7 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
 
   else if ((medium_prop_next->material == kRTtransparent || medium_prop_last->material == kRTtransparent) && rtdata.fReflection) {
 
-    float ior1 = 1.3, ior2 = 1.; // case when the next volume is transparent
+    float ior1 = 1.5, ior2 = 1.; // case when the next volume is transparent
     if (medium_prop_last->material == kRTtransparent) { // case when the ray exits the transparent volume
       // swap indices of refraction
       float copy = ior1;
@@ -226,7 +221,6 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
 
     vecgeom::Vector3D<double> reflected, refracted;
 
-    auto initial_col = ray.fColor;
     auto initial_int = ray.intensity;
 
     adept::Color_t col_refracted = 0, col_reflected = 0;
@@ -241,18 +235,16 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
       ray.fColor = 0xDCDCDCFF;
 
       if (medium_prop_last->material == kRTtransparent) { // case when the ray exits the transparent volume
-        // ray.fColor = 0xDCDCDCFF;
-        // ray.fColor *= 0.55;
+        ray.fColor *= 0.9;
       }
 
       ray.fDir      = refracted;
       col_refracted = ray.fColor;
-          
     }
     else {
       // printf("Total reflection\n");
-      col_refracted = 0;
-
+      // ray.fDone = true;  // TODO: nu pot omori aici raza pt ca raman fara refractie
+      kr = 0.9;
     }
       
     // Update the generation for the refracted ray and add it to the BlockData
@@ -272,7 +264,6 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
         Ray_t *reflected_ray      = rtdata.sparse_rays[ray.generation % 10]->next_free(ray);
         reflected_ray->fDir       = reflected;
         reflected_ray->intensity  = kr*initial_int;
-        // reflected_ray->fColor     = initial_col;
         // reflected_ray->fColor     *= kr;
         reflected_ray->fDone      = false;
 
