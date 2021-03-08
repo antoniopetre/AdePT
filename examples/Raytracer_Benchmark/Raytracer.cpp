@@ -167,7 +167,7 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int genera
 
     // Apply the selected RT model
     ray.fNcrossed++;
-    // Current volume should still reflect the state befor boundary crossing
+    // Current volume should still reflect the state before boundary crossing
     //ray.fVolume = nextvol;
 
     if (nextvol)
@@ -176,8 +176,8 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int genera
       // Rays exiting directly must get the color contribution from the background
       auto bkg_contrib = rtdata.fBkgColor;
       bkg_contrib *= ray.intensity;
-      ray.fColor += bkg_contrib;
-      ray.fDone  = true;
+      ray.fColor  += bkg_contrib;
+      ray.fDone    = true;
     }
   }
   
@@ -261,8 +261,8 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
       } else {
         auto bkg_contrib = rtdata.fBkgColor;
         bkg_contrib *= ray.intensity;
-        ray.fColor += bkg_contrib;
-        ray.fDone = true;
+        ray.fColor  += bkg_contrib;
+        ray.fDone    = true;
       }
     }
   }

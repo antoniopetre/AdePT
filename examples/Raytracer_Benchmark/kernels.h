@@ -17,7 +17,6 @@ __host__ __device__ void generateRays(int id, const RaytracerData_t &rtdata)
   ray->index = id;
   ray->generation = 0;
   ray->intensity  = 1.;
-  ray->fColor = rtdata.fBkgColor;
 
   Raytracer::InitRay(rtdata, *ray);
 }
