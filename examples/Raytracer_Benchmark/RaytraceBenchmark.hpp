@@ -70,7 +70,7 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   vecgeom::Vector3D<double> up(upx, upy, upz);
 
   // Light color, object color (no color per volume yet) - in RGBA chars compressed into an unsigned integer
-  OPTION_INT(bkgcol, 0xFF000080); // red (keep 80 as alpha channel for correct color blending)
+  OPTION_INT(bkgcol, 0xFFFFFF80); // white (keep 80 as alpha channel for correct color blending)
   // OPTION_INT(objcol, 0x0000FF80); // blue
   // OPTION_INT(vdepth, 4);          // visible depth
 
@@ -144,7 +144,7 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
          copcore::BackendName(backend));
 
   copcore::Allocator<NavIndex_t, backend> charAlloc;
-  NavIndex_t *input_buffer = charAlloc.allocate(rtdata->fNrays * raysize * sizeof(NavIndex_t));
+  //NavIndex_t *input_buffer = charAlloc.allocate(rtdata->fNrays * raysize * sizeof(NavIndex_t));
 
   copcore::Allocator<NavIndex_t, backend> ucharAlloc;
   NavIndex_t *output_buffer = ucharAlloc.allocate(4 * rtdata->fNrays * sizeof(NavIndex_t));
@@ -159,8 +159,8 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   }
 
   // Construct rays in place
-  for (int iray = 0; iray < rtdata->fNrays; ++iray)
-    Ray_t::MakeInstanceAt(input_buffer + iray * raysize);
+  //for (int iray = 0; iray < rtdata->fNrays; ++iray)
+  //  Ray_t::MakeInstanceAt(input_buffer + iray * raysize);
 
   vecgeom::Stopwatch timer;
   timer.Start();
@@ -174,7 +174,7 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   // Add initial rays in container
-  generate.Run(generateRaysFunc, rtdata->fSize_px*rtdata->fSize_py, {0, 0}, *rtdata, input_buffer);
+  generate.Run(generateRaysFunc, rtdata->fSize_px*rtdata->fSize_py, {0, 0}, *rtdata);
   COPCORE_CUDA_CHECK(cudaDeviceSynchronize());
 
   if (backend == copcore::BackendType::CUDA && use_tiles) {

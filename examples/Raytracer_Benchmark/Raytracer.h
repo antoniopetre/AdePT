@@ -11,6 +11,7 @@
 #include "Color.h"
 
 #include <CopCore/Global.h>
+#include <CopCore/PhysicalConstants.h>
 #include <AdePT/BlockData.h>
 #include <AdePT/SparseVector.h>
 
@@ -28,8 +29,10 @@ enum ERTmodel { kRTxray = 0, kRTspecular, kRTtransparent, kRTfresnel };
 enum ERTView { kRTVparallel = 0, kRTVperspective };
 
 struct MyMediumProp {
-    ERTmodel material;
-    adept::Color_t fObjColor;
+    ERTmodel material = kRTxray;
+    adept::Color_t fObjColor = 0;
+    float refr_index = 0;
+    float transparency_per_cm = 0;
 };
 
 struct Ray_t {
@@ -63,6 +66,15 @@ struct Ray_t {
   }
 
   __host__ __device__
+  void UpdateToNextVolume()
+  {
+    auto tmpstate  = fCrtState;
+    fCrtState  = fNextState;
+    fNextState = tmpstate;
+    fVolume = fCrtState.Top();
+  }
+
+  __host__ __device__
   vecgeom::Vector3D<double> Refract(vecgeom::Vector3D<double> const &normal, float ior1, float ior2, bool &totalreflect)
   {
     // ior1, ior2 are the refraction indices of the exited and entered volumes respectively
@@ -79,6 +91,19 @@ struct Ray_t {
       refracted    = eta * fDir + (eta * cosi - vecCore::math::Sqrt(k)) * n;
     }
     return refracted;
+  }
+
+  __host__ __device__
+  void TraverseTransparentLayer(float transparency_per_cm, float step, adept::Color_t object_color)
+  {
+    // Calculate transmittance = I/I0 = exp(ktr * step);
+    // where: ktr = log(transparency_per_cm)
+    float ktr = log(transparency_per_cm);
+    float transmittance = exp(ktr * step / copcore::units::cm);
+    auto blend_color  = object_color;
+    blend_color      *= (1 - transmittance);
+    fColor           += blend_color;
+    intensity        *= transmittance;
   }
 
   __host__ __device__
@@ -124,7 +149,7 @@ struct RaytracerData_t {
   int fSize_px             = 1024;            ///< Image pixel size in x
   int fSize_py             = 1024;            ///< Image pixel size in y
   // int fVisDepth            = 1;               ///< Visible geometry depth
-  adept::Color_t fBkgColor = 0xFFFFFFFF;      ///< Light color
+  adept::Color_t fBkgColor = 0xFFFFFF80;      ///< Background color
   // adept::Color_t fObjColor = 0x0000FFFF;      ///< Object color
   ERTmodel fModel          = kRTxray;         ///< Selected RT model
   ERTView fView            = kRTVperspective; ///< View type
@@ -164,7 +189,10 @@ void PropagateRays(adept::BlockData<Ray_t> *rays, RaytracerData_t &data, unsigne
                    unsigned char *output_buffer);
 
 __host__ __device__
-adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int px, int py, int generation);
+void InitRay(RaytracerData_t const &rtdata, Ray_t &ray);
+
+__host__ __device__
+adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int generation);
 
 } // End namespace Raytracer
 

@@ -13,18 +13,22 @@ void getMaterialStruct(MyMediumProp *volume_container, std::vector<vecgeom::Logi
 	for (auto lvol : logicalvolumes) {
       // lvol->Print();
       if (!strcmp(lvol->GetName(), "World")) {
-        volume_container[i].material = kRTxray;
+        volume_container[i].material = kRTtransparent;
         volume_container[i].fObjColor = 0x0000FF80;
+				volume_container[i].refr_index = 1.;
+				volume_container[i].transparency_per_cm = 1.;
       }
 
       else if (!strcmp(lvol->GetName(), "SphVol")) {
         volume_container[i].material = kRTtransparent;
         volume_container[i].fObjColor = 0x0000FF80;
+				volume_container[i].refr_index = 1.1;
+				volume_container[i].transparency_per_cm = 0.98;
       }
       
       else if (!strcmp(lvol->GetName(), "BoxVol"))  {
         volume_container[i].material = kRTspecular;
-        volume_container[i].fObjColor = 0x0000FF80;
+        volume_container[i].fObjColor = 0xFF000080;
       }
 
       else if ( !strcmp(lvol->GetName(), "M12_10") || !strcmp(lvol->GetName(), "M12_100x2") || !strcmp(lvol->GetName(), "M12_100x4") ||
@@ -65,10 +69,14 @@ void getMaterialStruct(MyMediumProp *volume_container, std::vector<vecgeom::Logi
 				!strcmp(lvol->GetName(), "M9_6") || !strcmp(lvol->GetName(), "M9_8")) {
         volume_container[i].material = kRTtransparent;
         volume_container[i].fObjColor = 0x0000FF80;
+				volume_container[i].refr_index = 1.5;
+				volume_container[i].transparency_per_cm = 0.98;
       }
       else {
-      	volume_container[i].material = kRTxray;
-        volume_container[i].fObjColor = 0x0000FF80;
+				volume_container[i].material = kRTtransparent;
+				volume_container[i].fObjColor = 0x0000FF80;
+				volume_container[i].refr_index = 1.;
+				volume_container[i].transparency_per_cm = 1.;
       }
       
       if (!on_gpu)

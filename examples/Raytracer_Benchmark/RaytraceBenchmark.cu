@@ -42,7 +42,7 @@ __global__ void RenderTile(RaytracerData_t rtdata, int offset_x, int offset_y,
   if (!(rtdata.sparse_rays)[generation]->is_used(ray_index)) return;
   Ray_t *ray = &(*rtdata.sparse_rays[generation])[ray_index];
 
-  auto pixel_color = Raytracer::RaytraceOne(rtdata, *ray, global_px, global_py, generation);
+  auto pixel_color = Raytracer::RaytraceOne(rtdata, *ray, generation);
 
   tile_out[pixel_index + 0] = pixel_color.fComp.red;
   tile_out[pixel_index + 1] = pixel_color.fComp.green;

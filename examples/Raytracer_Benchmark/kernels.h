@@ -11,43 +11,28 @@
 inline namespace COPCORE_IMPL {
 
 // Add initial rays in SparseVector
-__host__ __device__ void generateRays(int id, const RaytracerData_t &rtdata, NavIndex_t *input_buffer)
+__host__ __device__ void generateRays(int id, const RaytracerData_t &rtdata)
 {
-  int ray_index = id;
-
-  Ray_t *ray = (Ray_t *)(input_buffer + id * sizeof(Ray_t));
-  ray->index      = ray_index;
+  Ray_t *ray = rtdata.sparse_rays[0]->next_free();
+  ray->index = id;
   ray->generation = 0;
   ray->intensity  = 1.;
+  ray->fColor = rtdata.fBkgColor;
 
-  rtdata.sparse_rays[0]->next_free(*ray);
+  Raytracer::InitRay(rtdata, *ray);
 }
 
 COPCORE_CALLABLE_FUNC(generateRays)
 
-
 __host__ __device__ void renderKernels(int id, const RaytracerData_t &rtdata, int generation, adept::Color_t *color)
 {
   // Propagate all rays and write out the image on the backend
-  // size_t n10  = 0.1 * rtdata.fNrays;
-  int ray_index;
-  int px = 0, py = 0;
-
-  // Propagate the rays
   if (!(rtdata.sparse_rays)[generation]->is_used(id)) return;
-
-  ray_index = (*rtdata.sparse_rays[generation])[id].index;
     
-  if (ray_index) {
-    px = ray_index % rtdata.fSize_px;
-    py = ray_index / rtdata.fSize_px;
-  }
+  Ray_t &ray = (*rtdata.sparse_rays[generation])[id];
 
-  Ray_t *ray = &(*rtdata.sparse_rays[generation])[id];
-
-  auto pixel_color = Raytracer::RaytraceOne(rtdata, *ray, px, py, generation);  
-  color[ray_index] += pixel_color;
-
+  auto pixel_color = Raytracer::RaytraceOne(rtdata, ray, generation);
+  color[ray.index] += pixel_color;
 }
 COPCORE_CALLABLE_FUNC(renderKernels)
 
