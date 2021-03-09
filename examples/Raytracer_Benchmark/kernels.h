@@ -16,7 +16,8 @@ __host__ __device__ void generateRays(int id, const RaytracerData_t &rtdata)
   Ray_t *ray = rtdata.sparse_rays[0]->next_free();
   ray->index = id;
   ray->generation = 0;
-  ray->intensity  = 1.;
+  // ray->intensity  = 1.;
+  ray->intensity.store(1.);
 
   Raytracer::InitRay(rtdata, *ray);
 }

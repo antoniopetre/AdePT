@@ -175,7 +175,10 @@ adept::Color_t RaytraceOne(RaytracerData_t const &rtdata, Ray_t &ray, int genera
     else {
       // Rays exiting directly must get the color contribution from the background
       auto bkg_contrib = rtdata.fBkgColor;
-      bkg_contrib *= ray.intensity;
+      // bkg_contrib *= ray.intensity;
+      float x = ray.intensity.load();
+      bkg_contrib *= x;
+
       ray.fColor  += bkg_contrib;
       ray.fDone    = true;
     }
@@ -225,7 +228,8 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
 
     vecgeom::Vector3D<double> reflected, refracted;
 
-    auto initial_int = ray.intensity;
+    // auto initial_int = ray.intensity;
+    auto initial_int = ray.intensity.load();
 
     adept::Color_t col_refracted = 0, col_reflected = 0;
 
@@ -246,7 +250,8 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
 
       // Update reflected ray direction and state
       reflected_ray->fDir = reflected;
-      reflected_ray->intensity = kr * initial_int;
+      // reflected_ray->intensity = kr * initial_int;
+      reflected_ray->intensity.store(kr*initial_int);
       reflected_ray->fDone     = false;
       // Reflected ray stays in the same volume, no need to update to next
       reflected_ray->fVolume    = lastvol;
@@ -254,14 +259,19 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
 
     if (!totalreflect) {
       // update current ray to be the refracted one
-      ray.intensity *= (1 - kr);
-      if (ray.intensity > 0.1) {
+      // ray.intensity *= (1 - kr);
+      double x = (1-kr)*ray.intensity.load();
+      ray.intensity.store(x);
+      if (ray.intensity.load() > 0.1) {
         ray.fDir = refracted;
         ray.UpdateToNextVolume();
       } else {
         auto bkg_contrib = rtdata.fBkgColor;
-        bkg_contrib *= ray.intensity;
-        ray.fColor  += bkg_contrib;
+        // bkg_contrib *= ray.intensity;
+        // float x = ray.intensity.load();
+        // bkg_contrib *= (float) x;
+
+        ray.fColor   = bkg_contrib;
         ray.fDone    = true;
       }
     }
@@ -290,7 +300,10 @@ void ApplyRTmodel(Ray_t &ray, double step, RaytracerData_t const &rtdata)
     auto object_color = medium_prop_next->fObjColor;
     object_color.MultiplyLightChannel(1. + 0.5 * calf);
     specular_color += object_color;
-    specular_color *= ray.intensity;
+    // specular_color *= ray.intensity;
+    float x = ray.intensity.load();
+    specular_color *= x;
+
     ray.fColor += specular_color;
     ray.fDone  = true;
   }

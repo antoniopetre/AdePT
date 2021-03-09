@@ -47,7 +47,8 @@ struct Ray_t {
   adept::Color_t fColor      = 0;       ///< pixel color
   bool fDone                 = false;   ///< done flag
   int index                  = -1;      ///< index flag
-  float intensity            = 1.;      ///< intensity flag (used for kRTfresnel model)
+  // float intensity            = 1.;      ///< intensity flag (used for kRTfresnel model)
+  adept::Atomic_t<float> intensity;
   int generation             = -1;      ///< generation flag (used for kRTfresnel model)
 
   __host__ __device__
@@ -103,7 +104,12 @@ struct Ray_t {
     auto blend_color  = object_color;
     blend_color      *= (1 - transmittance);
     fColor           += blend_color;
-    intensity        *= transmittance;
+
+    // intensity        *= transmittance;
+
+    float x = intensity.load();
+    x *= transmittance;
+    intensity.store(x);
   }
 
   __host__ __device__

@@ -155,7 +155,6 @@ int runSimulation(const MyMediumProp *volume_container, const vecgeom::cxx::VPla
 
   for (int i = 0; i < rtdata->fSize_px*rtdata->fSize_py; i++) {
     color[i] = 0;
-    // color[i].fComp.alpha = 127;
   }
 
   // Construct rays in place
