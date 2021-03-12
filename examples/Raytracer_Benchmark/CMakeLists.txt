@@ -34,7 +34,7 @@ target_include_directories(raytracercu PUBLIC
   $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/base/inc>
 )
 target_link_libraries(raytracercu VecCore::VecCore VecGeom::vecgeom VecGeom::vecgeomcuda_static CopCore::CopCore)
-target_compile_options(raytracercu PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
+#target_compile_options(raytracercu PRIVATE "$<$<AND:$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
 target_compile_options(raytracercu PRIVATE "$<$<COMPILE_LANGUAGE:CUDA>:--extended-lambda;>")
 set_target_properties(raytracercu PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
